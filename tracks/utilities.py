@@ -34,3 +34,34 @@ def write_new_json(url_key,new_data,file_name):
             json_dict[url_key] = new_data
             json.dump(json_dict, json_file)
 
+# From https://stackoverflow.com/questions/42583670/how-to-add-new-elements-to-the-end-of-a-json-file
+def append_to_json(filepath, data):
+    """
+    Append data in JSON format to the end of a JSON file.
+    NOTE: Assumes file contains a JSON object (like a Python
+    dict) ending in '}'. 
+    :param filepath: path to file
+    :param data: dict to append
+    """
+
+    # construct JSON fragment as new file ending
+    new_ending = ", " + json.dumps(data)[1:-1] + "}\n"
+
+    # edit the file in situ - first open it in read/write mode
+    with open(filepath, 'r+') as f:
+
+        f.seek(0, 2)        # move to end of file
+        index = f.tell()    # find index of last byte
+
+        # walking back from the end of file, find the index 
+        # of the original JSON's closing '}'
+        while not f.read().startswith('}'):
+            index -= 1
+            if index == 0:
+                raise ValueError("can't find JSON object in {!r}".format(filepath))
+            f.seek(index)
+
+        # starting at the original ending } position, write out
+        # the new ending
+        f.seek(index)
+        f.write(new_ending)    
