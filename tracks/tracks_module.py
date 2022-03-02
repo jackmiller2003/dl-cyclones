@@ -14,6 +14,10 @@ with open('proc_tracks.json', 'r+') as pt:
 class Track:
     """
     This class contains relevant data for a given cyclone track.
+    It should be working as intended with one being able to create the track from an SID and the tracks JSON.
+    For example:
+    >>> track = Track.from_sid('1992096S08132')
+    >>> coordinates = track.coordinates
     """
     iso_times: list[str]
     categories: list[int]
@@ -99,5 +103,4 @@ def convert_lat_lon(tracks_file='tracks.json', proc_tracks_file='proc_tracks.jso
 
 if __name__ == '__main__':
     # save_all_storms('ibtracs.ALL.list.v04r00.csv', save_to_file="tracks.json", year_init=1979)
-
     track = Track.from_sid('1992096S08132')
