@@ -1,4 +1,4 @@
-
+ 
 from typing import List, Tuple
 import numpy as np
 from datetime import datetime
@@ -37,34 +37,49 @@ def test_netcdf_files():
         assert os.path.isfile(file)
     print('all files!')
 
-def sample_latlong_window(array, degrees, lat, long, time):
+def sample_latlong_window(array: xarray.DataArray, degrees: float, lat: float, long: float, time: str) -> np.ndarray:
     # note that latitudes are -90 to 90 so we invert the slice
-    return array.sel(time=time, longitude=slice(long-degrees/2,long+degrees/2), latitude=slice(lat+degrees/2,lat-degrees/2))
-    # return array.where(array.time == time) \
-    #             .where(lat-degrees/2 <= array.latitude) \
-    #             .where(array.latitude <= lat+degrees/2) \
-    #             .where(long-degrees/2 <= array.longitude) \
-    #             .where(array.longitude <= long+degrees/2)
+    # the return will (probably) still have a backwards latitude dimension, as long as this is consistent it's no problem
+    # TODO: need a levels parameter like track_to_ndarray
+    # also note that longitude wraps -180 to 180 and our region might cross this wrapping line
+    # depending on where we're sampling around we may get degrees/4 or degrees/4+1 points along an axis. We trim this to degrees/4
+    main = array.sel(time=time, longitude=slice(long-degrees/2,long+degrees/2), latitude=slice(lat+degrees/2,lat-degrees/2)).to_numpy().swapaxes(1,2) # swap (levels,lat,long) for (levels,long,lat)
+    points = int(round(degrees / 0.25))
+    main = main[:,:points,:points]
+    needs_secondary = False # do we need another slice to get data on the other side due to longitude wrapping?
+    if long-degrees/2 < -180:
+        long += 360
+        needs_secondary = True
+    elif long+degrees/2 > 180:
+        long -= 360
+        needs_secondary = True
+    if needs_secondary:
+        secondary = array.sel(time=time, longitude=slice(long-degrees/2,long+degrees/2), latitude=slice(lat+degrees/2,lat-degrees/2)).to_numpy().swapaxes(1,2)
+        secondary = secondary[:,:points,:points]
+        main = np.hstack((main, secondary))
+
+    main = main[:,:points,:points]
+
+    shape = (37, points, points) # (levels, long, lat)
+    assert main.shape == shape, f"{main.shape} must be {shape}"
+    return main
 
 def track_to_ndarray(iso_times: List[str], coordinates: List[Tuple[float, float]], degree_window = 35) -> np.ndarray:
     """
     Takes lat/long coordinates and ISO-8601 formatted time strings
     Returns an ndarray of blocks at each time where each block is a 3D pressure map around the coordinate
-    
-    TODO:
+
     Returns (time, set, level, long, lat) shape
     eg [0][1] means 'v' at the first timestep
     [0][1][3][-1][-1] means the bottom right v component on the 4th level at the first timestep
     
-    Currently: only selects one coordinate, not a 10 degree window
-    so it returns (time, set, level)
+    TODO: take a `levels: List[int]` keyword argument and chunk 1 level at a time and edit the shape assertion with len(levels)
     """
     times = [np.datetime64(iso_time) for iso_time in iso_times] # List[np.datetime64]
     time_interval = (min(times), max(times))
     sets = ['u', 'v', 'z', 'pv']
 
     # time chunks are 2 mins, latitude/longitude are 0.25 degrees
-    # We want 10 degrees for our toy data in both directions
     # and 1 time only because we only sample every 6 hours on average
     ds_dict = { shorthand: xarray.open_mfdataset(netcdf_files(time_interval, [shorthand]),
         chunks={ "time": 1, "latitude": 300, "longitude": 300 },
@@ -75,8 +90,15 @@ def track_to_ndarray(iso_times: List[str], coordinates: List[Tuple[float, float]
         chunk = []
         for shorthand in sets:
             ds = ds_dict[shorthand]
-            x = sample_latlong_window(ds[shorthand], degree_window, lat, long, time).load()
+            x = sample_latlong_window(ds[shorthand], degree_window, lat, long, time)
             chunk.append(x)
         time_series.append(chunk)
-    return np.array(time_series)
+    y = np.array(time_series)
+
+    # 37 levels
+    points = int(round(degree_window / 0.25))
+    shape = (len(iso_times), len(sets), 37, points, points)
+    assert y.shape == shape, f"{y.shape} must be {shape}"
+    
+    return y
 
