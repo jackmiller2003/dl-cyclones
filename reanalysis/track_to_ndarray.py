@@ -1,4 +1,3 @@
- 
 from typing import List, Tuple
 import numpy as np
 from datetime import datetime
@@ -60,7 +59,7 @@ def sample_latlong_window(array: xarray.DataArray, degrees: float, lat: float, l
 
     main = main[:,:points,:points]
 
-    shape = (37, points, points) # (levels, long, lat)
+    shape = (len(levels), points, points) # (levels, long, lat)
     assert main.shape == shape, f"{main.shape} must be {shape}"
     return main
 
