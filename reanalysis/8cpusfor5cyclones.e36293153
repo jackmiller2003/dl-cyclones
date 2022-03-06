@@ -1,0 +1,45 @@
+/g/data3/hh5/public/apps/miniconda3/envs/analysis3-22.01/lib/python3.9/site-packages/dask/array/slicing.py:647: RuntimeWarning: divide by zero encountered in long_scalars
+  maxsize = math.ceil(nbytes / (other_numel * itemsize))
+Traceback (most recent call last):
+  File "/home/156/jm0124/dl-cyclones/reanalysis/test_for_cpu.py", line 28, in job
+    cyclone = lib.track_to_ndarray(
+  File "/home/156/jm0124/dl-cyclones/reanalysis/track_to_ndarray.py", line 92, in track_to_ndarray
+    x = sample_latlong_window(ds[shorthand], degree_window, lat, long, time, levels)
+  File "/home/156/jm0124/dl-cyclones/reanalysis/track_to_ndarray.py", line 56, in sample_latlong_window
+    secondary = array.sel(time=time, longitude=slice(long-degrees/2,long+degrees/2), latitude=slice(lat+degrees/2,lat-degrees/2), level=levels).to_numpy().swapaxes(1,2)
+  File "/g/data3/hh5/public/apps/miniconda3/envs/analysis3-22.01/lib/python3.9/site-packages/xarray/core/dataarray.py", line 1332, in sel
+    ds = self._to_temp_dataset().sel(
+  File "/g/data3/hh5/public/apps/miniconda3/envs/analysis3-22.01/lib/python3.9/site-packages/xarray/core/dataset.py", line 2511, in sel
+    result = self.isel(indexers=pos_indexers, drop=drop)
+  File "/g/data3/hh5/public/apps/miniconda3/envs/analysis3-22.01/lib/python3.9/site-packages/xarray/core/dataset.py", line 2369, in isel
+    var_value = var_value.isel(var_indexers)
+  File "/g/data3/hh5/public/apps/miniconda3/envs/analysis3-22.01/lib/python3.9/site-packages/xarray/core/variable.py", line 1193, in isel
+    return self[key]
+  File "/g/data3/hh5/public/apps/miniconda3/envs/analysis3-22.01/lib/python3.9/site-packages/xarray/core/variable.py", line 786, in __getitem__
+    data = as_indexable(self._data)[indexer]
+  File "/g/data3/hh5/public/apps/miniconda3/envs/analysis3-22.01/lib/python3.9/site-packages/xarray/core/indexing.py", line 1227, in __getitem__
+    return self.array[key]
+  File "/g/data3/hh5/public/apps/miniconda3/envs/analysis3-22.01/lib/python3.9/site-packages/dask/array/core.py", line 1847, in __getitem__
+    dsk, chunks = slice_array(out, self.name, self.chunks, index2, self.itemsize)
+  File "/g/data3/hh5/public/apps/miniconda3/envs/analysis3-22.01/lib/python3.9/site-packages/dask/array/slicing.py", line 174, in slice_array
+    dsk_out, bd_out = slice_with_newaxes(out_name, in_name, blockdims, index, itemsize)
+  File "/g/data3/hh5/public/apps/miniconda3/envs/analysis3-22.01/lib/python3.9/site-packages/dask/array/slicing.py", line 196, in slice_with_newaxes
+    dsk, blockdims2 = slice_wrap_lists(out_name, in_name, blockdims, index2, itemsize)
+  File "/g/data3/hh5/public/apps/miniconda3/envs/analysis3-22.01/lib/python3.9/site-packages/dask/array/slicing.py", line 280, in slice_wrap_lists
+    blockdims2, dsk2 = take(out_name, tmp, blockdims2, index[axis], 8, axis=axis2)
+  File "/g/data3/hh5/public/apps/miniconda3/envs/analysis3-22.01/lib/python3.9/site-packages/dask/array/slicing.py", line 647, in take
+    maxsize = math.ceil(nbytes / (other_numel * itemsize))
+OverflowError: cannot convert float infinity to integer
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/156/jm0124/dl-cyclones/reanalysis/test_for_cpu.py", line 15, in error_tolerant
+    return f(*args, **kwargs)
+  File "/home/156/jm0124/dl-cyclones/reanalysis/test_for_cpu.py", line 40, in job
+    raise Exception(f"Failed to process cyclone {ssid}")
+Exception: Failed to process cyclone 1997355S05189
+Traceback (most recent call last):
+  File "/home/156/jm0124/dl-cyclones/reanalysis/test_for_cpu.py", line 77, in <module>
+    print(f"Finished processing {range_upper - range_under} cyclones in {n_time-o_time:.2f} seconds")
+NameError: name 'range_upper' is not defined

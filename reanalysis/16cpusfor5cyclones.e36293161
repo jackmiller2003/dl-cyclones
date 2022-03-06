@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/home/156/jm0124/dl-cyclones/reanalysis/test_for_cpu.py", line 77, in <module>
+    print(f"Finished processing {range_upper - range_under} cyclones in {n_time-o_time:.2f} seconds")
+NameError: name 'range_upper' is not defined

@@ -10,9 +10,6 @@ import time
 with open('../tracks/proc_tracks.json', 'r') as f:
     tracks = json.load(f)
 
-with open ('timing_log.txt', 'r') as timing_log:
-    txt_log = timing_log
-
 def error_tolerant(f, *args, **kwargs):
     try:
         return f(*args, **kwargs)
@@ -55,11 +52,27 @@ def get_some_cyclones(lower, upper) -> None:
     dask.compute(*cyclone_thunks)
     print("Finished compute")
 
+def get_some_cyclones_list(list_of_cyclones) -> None:
+    cyclone_thunks = []
+    list_of_tracks = list(tracks.keys())
+
+    for ref_number in list_of_cyclones:
+        ssid = list_of_tracks[ref_number]
+        track = tracks[ssid]
+        cyclone_thunks.append(dask.delayed(
+            error_tolerant(job, track, ssid)
+        ))
+
+    print("Running dask compute")
+    dask.compute(*cyclone_thunks)
+    print("Finished compute")
+
 if __name__ == '__main__':
-    range_under = 1015
-    range_upper = 1019
+    # range_under = 1025
+    # range_upper = 1029
     o_time = time.perf_counter()
-    get_some_cyclones(range_under,range_upper)
+    #get_some_cyclones(range_under,range_upper)
+    get_some_cyclones_list([513, 688, 952, 2021, 3096])
     n_time = time.perf_counter()
-    txt_log.write(f"Finished processing {range_upper - range_under} cyclones in {n_time-o_time:.2f} seconds")
+    print(f"Finished processing {range_upper - range_under} cyclones in {n_time-o_time:.2f} seconds")
     quit()

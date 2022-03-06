@@ -1,8 +1,8 @@
 #!/bin/bash
 #PBS -q normal
 #PBS -P x77
-#PBS -N 16cpusfor5cyclones
-#PBS -l ncpus=16
+#PBS -N 24cpusfor5cyclones
+#PBS -l ncpus=24
 #PBS -l mem=96GB
 #PBS -l jobfs=100GB
 #PBS -l walltime=0:30:00

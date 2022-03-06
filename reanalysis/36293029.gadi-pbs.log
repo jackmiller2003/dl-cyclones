@@ -1,0 +1,15 @@
+Getting ndarray for cyclone 1988265N12218
+Saving ndarray for cyclone 1988265N12218
+Finished processing cyclone 1988265N12218 in 77.63 seconds
+Getting ndarray for cyclone 1988265N13263
+Saving ndarray for cyclone 1988265N13263
+Finished processing cyclone 1988265N13263 in 105.57 seconds
+Getting ndarray for cyclone 1988271N16125
+Saving ndarray for cyclone 1988271N16125
+Finished processing cyclone 1988271N16125 in 158.51 seconds
+Getting ndarray for cyclone 1988272N12339
+Saving ndarray for cyclone 1988272N12339
+Finished processing cyclone 1988272N12339 in 19.98 seconds
+Running dask compute
+Finished compute
+Finished processing 4 cyclones in 361.70 seconds

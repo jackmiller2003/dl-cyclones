@@ -1,0 +1,13 @@
+
+======================================================================================
+                  Resource Usage on 2022-03-06 12:50:22:
+   Job Id:             36293161.gadi-pbs
+   Project:            x77
+   Exit Status:        1
+   Service Units:      15.13
+   NCPUs Requested:    24                     NCPUs Used: 24              
+                                           CPU Time Used: 00:05:53                                   
+   Memory Requested:   96.0GB                Memory Used: 11.06GB         
+   Walltime requested: 00:30:00            Walltime Used: 00:18:55        
+   JobFS requested:    100.0GB                JobFS used: 0B              
+======================================================================================
