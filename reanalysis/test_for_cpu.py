@@ -10,6 +10,9 @@ import time
 with open('../tracks/proc_tracks.json', 'r') as f:
     tracks = json.load(f)
 
+with open ('timing_log.txt', 'r') as timing_log:
+    txt_log = timing_log
+
 def error_tolerant(f, *args, **kwargs):
     try:
         return f(*args, **kwargs)
@@ -53,8 +56,10 @@ def get_some_cyclones(lower, upper) -> None:
     print("Finished compute")
 
 if __name__ == '__main__':
+    range_under = 1015
+    range_upper = 1019
     o_time = time.perf_counter()
-    get_some_cyclones(1010,1014)
+    get_some_cyclones(range_under,range_upper)
     n_time = time.perf_counter()
-    print(f"Finished processing ALL cyclones in {n_time-o_time:.2f} seconds")
+    txt_log.write(f"Finished processing {range_upper - range_under} cyclones in {n_time-o_time:.2f} seconds")
     quit()
