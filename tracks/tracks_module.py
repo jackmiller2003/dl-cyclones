@@ -100,7 +100,19 @@ def convert_lat_lon(tracks_file='tracks.json', proc_tracks_file='proc_tracks.jso
         new_dict['coordinates'] = new_coords
         add_to_json(sid, new_dict, proc_tracks_file)
 
+def all_avaliable_tracks(tracks_file='proc_tracks.json', data_local='/g/data/x77/jm0124/cyclone_binaries'):
+    with open(tracks_file, 'r') as tracks_json:
+        tracks_dict = json.load(tracks_json)
+    
+    cyclones_saved = os.listdir(data_local)
+    
+    for sid in cyclone_saved:
+        if sid in tracks_dict:
+            data = {sid:tracks_dict[sid]}
+            append_to_json('avaliable.json', data)
+    
+    
 
 if __name__ == '__main__':
     # save_all_storms('ibtracs.ALL.list.v04r00.csv', save_to_file="tracks.json", year_init=1979)
-    track = Track.from_sid('1992096S08132')
+    all_avaliable_tracks()

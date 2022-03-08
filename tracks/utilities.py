@@ -1,6 +1,6 @@
 import tqdm
 from tqdm import tqdm
-import ujson as json
+import json
 import logging
 import os
 
