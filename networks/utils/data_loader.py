@@ -12,15 +12,14 @@ with open('../../tracks/avaliable.json', 'r') as ptj:
 class CycloneDataset(Dataset):
     """
     Custom dataset for cyclones.
-
-    TODO: Create a system by which to load t, t-3, t-6 etc.
     """
 
-    def __init__(self, cyclone_dir, transform=None, target_transform=None):
+    def __init__(self, cyclone_dir, transform=None, target_transform=None, time_step_back=1):
         self.tracks_dict = tracks_dict
         self.cyclone_dir = cyclone_dir
         self.transform = transform
         self.target_transform = target_transform
+        self.time_step_back = time_step_back
 
     def __len__(self):
         length = 0
@@ -33,11 +32,11 @@ class CycloneDataset(Dataset):
         i = 0
 
         for cyclone, data in tracks_dict.items():
-            j = 0
+            j = self.time_step_back
             for coordinate in data['coordinates']:
                 if i == idx:
                     cyclone_array = np.load(self.cyclone_dir+cyclone)
-                    example = torch.from_numpy(cyclone_array[j,:,:,:,:])
+                    example = torch.from_numpy(cyclone_array[j-self.time_step_back:j+1,:,:,:,:])
                     label = torch.from_numpy(np.array([float(data['coordinates'][j][0]), float(data['coordinates'][j][1]), float(data['categories'][j])]))
                     return example, label
 
@@ -58,7 +57,7 @@ def load_datasets(splits: dict):
 def get_first_example():
     # Display image and label.
 
-    training_data = CycloneDataset(cyclone_dir='/g/data/x77/jm0124/cyclone_binaries/')
+    training_data = CycloneDataset(cyclone_dir='/g/data/x77/jm0124/cyclone_binaries/', time_step_back=1)
     train_dataloader = DataLoader(training_data, batch_size=4, shuffle=False)
     
     train_features, train_labels = next(iter(train_dataloader))
@@ -67,7 +66,9 @@ def get_first_example():
 
     print(f"Feature batch type: {type(train_features)}")
     print(f"Labels batch type: {type(train_labels)}")
-    img = train_features[0][0][0].squeeze()
+    print(f"Feature batch size: {train_features.shape}")
+    print(f"Labels batch size: {train_labels.shape}")
+    img = train_features[0][0][0][0].squeeze()
     label = train_labels[0]
     plt.imshow(img, cmap="gray")
     plt.savefig('example.png')
