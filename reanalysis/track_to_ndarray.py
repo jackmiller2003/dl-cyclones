@@ -92,6 +92,7 @@ def track_to_ndarray_xr(iso_times: List[str],
     out = []
     for shorthand in sets:
         ds = ds_dict[shorthand]
+
         res = []
         for time, (lat, lon) in zip(iso_times, coordinates):
             res.append(sample_window(ds.sel(time=time), degree_window, lat, lon))
@@ -101,15 +102,4 @@ def track_to_ndarray_xr(iso_times: List[str],
     # concat the different variables along a new "sets" dimension, and set this
     # to be the second dimension (matching the original behaviour)
     mapped = xarray.concat(out, "sets").transpose("time", "sets", ...)
-
-
-    # with the default threaded scheduler, this can't access a single file in parallel
-    # due to netcdf locking, and processes would have to send all the data back to
-    # one place incurring a communication overhead
-    with dask.config.set(scheduler="synchronous"):
-        y = mapped.to_numpy()
-
-    points = int(round(degree_window / 0.25))
-    shape = (len(iso_times), len(sets), len(levels), points, points)
-    assert y.shape == shape, f"{y.shape} must be {shape}"
-    return y
+    return mapped.load(scheduler="synchronous")
