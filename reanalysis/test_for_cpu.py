@@ -1,4 +1,5 @@
 import dask
+import dask.bag as db
 import traceback
 import json
 import track_to_ndarray as lib
@@ -7,72 +8,49 @@ import os
 import xarray
 import time
 
+dask.config.set(scheduler="synchronous")
+
 with open('../tracks/proc_tracks.json', 'r') as f:
     tracks = json.load(f)
 
-def error_tolerant(f, *args, **kwargs):
-    try:
-        return f(*args, **kwargs)
-    except Exception:
-        traceback.print_exc()
-
 def get_user_path() -> str:
     # I'm not sure if there's a general way to know what the username is so we'll hardcode Jack's for now
-    return f'/g/data/x77/jm0124'
+    # -- probably os.getlogin(), but this wasn't quite working for me!
+    return f'/scratch/x77/ahg157'
 
-def job(track, ssid) -> None:
+def job(ssid) -> None:
     "Saves a binary ndarray for a cyclone given the track JSON and unique ID from the IBTrACS database"
-    try:
-        print(f"Getting ndarray for cyclone {ssid}")
-        s_time = time.perf_counter()
-        cyclone = lib.track_to_ndarray(
-            track['iso_times'],
-            [(lat, long) for [long, lat] in track['coordinates']],
-            levels=[200,450,650,750,850],
-            degree_window=10
-        )
-        print(f"Saving ndarray for cyclone {ssid}")
-        with open(f'{get_user_path()}/cyclone_binaries/{ssid}', 'wb') as f:
-            np.save(f, cyclone)
-        e_time = time.perf_counter()
-        print(f"Finished processing cyclone {ssid} in {e_time - s_time:.2f} seconds")
-    except Exception as e:
-        raise Exception(f"Failed to process cyclone {ssid}")
 
-def get_some_cyclones(lower, upper) -> None:
-    cyclone_thunks = []
+    print(f"Getting ndarray for cyclone {ssid}")
 
-    for ssid in list(tracks.keys())[lower:upper]:
-        track = tracks[ssid]
-        cyclone_thunks.append(dask.delayed(
-            error_tolerant(job, track, ssid)
-        ))
+    track = tracks[ssid]
+    N = None # subset track length
 
-    print("Running dask compute")
-    dask.compute(*cyclone_thunks)
-    print("Finished compute")
+    s_time = time.perf_counter()
+    cyclone = lib.track_to_ndarray_xr(
+        track['iso_times'][:N],
+        [(lat, long) for [long, lat] in track['coordinates'][:N]],
+        levels=[200,450,650,750,850],
+        degree_window=10
+    )
+
+    print(f"Saving ndarray for cyclone {ssid}")
+    with open(f'{get_user_path()}/cyclone_binaries/{ssid}', 'wb') as f:
+        np.save(f, cyclone)
+    e_time = time.perf_counter()
+
+    print(f"Finished processing cyclone {ssid} in {e_time - s_time:.2f} seconds")
 
 def get_some_cyclones_list(list_of_cyclones) -> None:
     cyclone_thunks = []
     list_of_tracks = list(tracks.keys())
 
-    for ref_number in list_of_cyclones:
-        ssid = list_of_tracks[ref_number]
-        track = tracks[ssid]
-        cyclone_thunks.append(dask.delayed(
-            error_tolerant(job, track, ssid)
-        ))
-
-    print("Running dask compute")
-    dask.compute(*cyclone_thunks)
-    print("Finished compute")
+    b = db.from_sequence([list_of_tracks[n] for n in list_of_cyclones])
+    b.map(job).compute()
 
 if __name__ == '__main__':
-    # range_under = 1025
-    # range_upper = 1029
     o_time = time.perf_counter()
-    #get_some_cyclones(range_under,range_upper)
-    get_some_cyclones_list([513, 688, 952, 2021, 3096])
+    cyclones = [513, 688, 952, 2021, 3096]
+    get_some_cyclones_list(cyclones)
     n_time = time.perf_counter()
-    print(f"Finished processing {range_upper - range_under} cyclones in {n_time-o_time:.2f} seconds")
-    quit()
+    print(f"Finished processing {len(cyclones)} cyclones in {n_time-o_time:.2f} seconds")
