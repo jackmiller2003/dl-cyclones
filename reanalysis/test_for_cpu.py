@@ -35,6 +35,7 @@ def job(ssid) -> None:
     time_bag = db.from_sequence(times, npartitions=n_workers)
     coord_bag = db.from_sequence(coords, npartitions=n_workers)
 
+    # In the paper they use 700, 500, 225
     def f(times, coords):
         return lib.track_to_ndarray_xr(
             times, coords, levels=[200,450,650,750,850], degree_window=10,
