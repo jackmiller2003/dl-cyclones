@@ -1,8 +1,9 @@
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import numpy as np
 from datetime import datetime
 from calendar import monthrange
 import xarray
+import dask
 
 def netcdf_files(time_interval: Tuple[np.datetime64, np.datetime64], sets: List[str]) -> List[str]:
     """
@@ -19,84 +20,86 @@ def netcdf_files(time_interval: Tuple[np.datetime64, np.datetime64], sets: List[
     total_months = 12 * (e_year - s_year) + (e_month - s_month) + 1
     year_month_pairs = [(s_year + (s_month + i - 1) // 12, (s_month + i - 1) % 12 + 1) for i in range(total_months)]
     files = []
-    for shorthand in sets:
-        for (year, month) in year_month_pairs:
-            padded_month = f"{month:02d}" # zero padded month number
-            last_day = monthrange(year, month)[1]
-            files.append(f"{basepath}/{shorthand}/{year}/{shorthand}_era5_oper_pl_{year}{padded_month}01-{year}{padded_month}{last_day}.nc")
+    for (year, month) in year_month_pairs:
+        padded_month = f"{month:02d}" # zero padded month number
+        last_day = monthrange(year, month)[1]
+        files.append([
+            f"{basepath}/{shorthand}/{year}/{shorthand}_era5_oper_pl_{year}{padded_month}01-{year}{padded_month}{last_day}.nc"
+            for shorthand in sets
+        ])
     return files
 
-def test_netcdf_files():
-    import os
-    s = np.datetime64('2009-01-05')
-    e = np.datetime64('2010-09-30')
-    files = lib.netcdf_files((s, e), ['u', 'v'])
-    print(files)
-    for file in files:
-        assert os.path.isfile(file)
-    print('all files!')
-
-def sample_latlong_window(array: xarray.DataArray, degrees: float, lat: float, long: float, time: str, levels: List[int]) -> np.ndarray:
-    # note that latitudes are -90 to 90 so we invert the slice
-    # the return will (probably) still have a backwards latitude dimension, as long as this is consistent it's no problem
-    # TODO: need a levels parameter like track_to_ndarray
-    # also note that longitude wraps -180 to 180 and our region might cross this wrapping line
-    # depending on where we're sampling around we may get degrees/4 or degrees/4+1 points along an axis. We trim this to degrees/4
-    main = array.sel(time=time, longitude=slice(long-degrees/2,long+degrees/2), latitude=slice(lat+degrees/2,lat-degrees/2), level=levels).to_numpy().swapaxes(1,2) # swap (levels,lat,long) for (levels,long,lat)
-    points = int(round(degrees / 0.25))
-    main = main[:,:points,:points]
-    needs_secondary = False # do we need another slice to get data on the other side due to longitude wrapping?
-    if long-degrees/2 < -180:
-        long += 360
-        needs_secondary = True
-    elif long+degrees/2 > 180:
-        long -= 360
-        needs_secondary = True
-    if needs_secondary:
-        secondary = array.sel(time=time, longitude=slice(long-degrees/2,long+degrees/2), latitude=slice(lat+degrees/2,lat-degrees/2), level=levels).to_numpy().swapaxes(1,2)
-        secondary = secondary[:,:points,:points]
-        main = np.hstack((main, secondary))
-
-    main = main[:,:points,:points]
-
-    shape = (len(levels), points, points) # (levels, long, lat)
-    assert main.shape == shape, f"{main.shape} must be {shape}"
-    return main
-
-def track_to_ndarray(iso_times: List[str], coordinates: List[Tuple[float, float]], levels: List[int], degree_window = 35) -> np.ndarray:
+def coord_slice(coord: Tuple[float, float],
+                degrees: float) -> Dict[str, slice]:
     """
-    Takes lat/long coordinates and ISO-8601 formatted time strings
-    Returns an ndarray of blocks at each time where each block is a 3D pressure map around the coordinate
-
-    Returns (time, set, level, long, lat) shape
-    eg [0][1] means 'v' at the first timestep
-    [0][1][3][-1][-1] means the bottom right v component on the 4th level at the first timestep
-    
-    TODO: take a `levels: List[int]` keyword argument and chunk 1 level at a time and edit the shape assertion with len(levels)
+    Return a dictionary of lat/lon slices for the given window size.
     """
-    times = [np.datetime64(iso_time) for iso_time in iso_times] # List[np.datetime64]
+
+    lat, lon = coord
+    return {
+        "latitude": slice(lat + degrees/2, lat - degrees/2),
+        "longitude": slice(lon - degrees/2, lon + degrees/2)
+    }
+
+
+def sample_window(ds: xarray.DataArray, degrees: float, lat: float, lon: float) -> xarray.DataArray:
+    """
+    Sample ds with the specified window around a lat/lon point. Handles wrapping around the
+    periodic X boundary.
+    """
+
+    points = int(round(degrees / 0.25)) # hardcode 0.25 deg input
+
+    chunks = []
+    for offset in [-360, 0, 360]:
+        chunks.append(
+            ds
+            .sel(coord_slice((lat, lon + offset), degrees))
+            .isel(longitude=slice(None, points), latitude=slice(None, points))
+            .reset_index(["longitude", "latitude"], drop=True)
+        )
+
+    full = xarray.concat(chunks, "longitude")
+
+    return (
+        full
+        .isel(longitude=slice(None, points), latitude=slice(None, points))
+    )
+
+
+def track_to_ndarray_xr(iso_times: List[str],
+                        coordinates: List[Tuple[float, float]],
+                        levels: List[int],
+                        degree_window = 35) -> np.ndarray:
+    """
+    Sample a track given as times and coordinate locations, at the specified levels, with a given window
+    around each point.
+    """
+
+    times = [np.datetime64(iso_time) for iso_time in iso_times]
     time_interval = (min(times), max(times))
-    sets = ['u', 'v', 'z', 'pv']
+    sets = ["u", "v", "z", "pv"]
 
-    # time chunks are 2 mins, latitude/longitude are 0.25 degrees
-    # and 1 time only because we only sample every 6 hours on average
-    ds_dict = { shorthand: xarray.open_mfdataset(netcdf_files(time_interval, [shorthand]),
-        chunks={ "time": 1, "latitude": 300, "longitude": 300 },
-        combine='nested', concat_dim='time') for shorthand in sets }
+    ds_dict = {
+        shorthand: xarray.open_mfdataset(
+            netcdf_files(time_interval, [shorthand])[0],
+            chunks={"time": 1, "latitude": 324, "longitude": 360},
+            combine="nested", concat_dim="time"
+        ).sel(level=levels)
+        for shorthand in sets
+    }
 
-    time_series = []
-    for time, (lat, long) in zip(iso_times, coordinates):
-        chunk = []
-        for shorthand in sets:
-            ds = ds_dict[shorthand]
-            x = sample_latlong_window(ds[shorthand], degree_window, lat, long, time, levels)
-            chunk.append(x)
-        time_series.append(chunk)
-    y = np.array(time_series)
+    out = []
+    for shorthand in sets:
+        ds = ds_dict[shorthand]
 
-    points = int(round(degree_window / 0.25))
-    shape = (len(iso_times), len(sets), len(levels), points, points)
-    assert y.shape == shape, f"{y.shape} must be {shape}"
-    
-    return y
+        res = []
+        for time, (lat, lon) in zip(iso_times, coordinates):
+            res.append(sample_window(ds.sel(time=time), degree_window, lat, lon))
 
+        out.append(xarray.concat(res, "time")[shorthand])
+
+    # concat the different variables along a new "sets" dimension, and set this
+    # to be the second dimension (matching the original behaviour)
+    mapped = xarray.concat(out, "sets").transpose("time", "sets", ...)
+    return mapped.load(scheduler="synchronous")

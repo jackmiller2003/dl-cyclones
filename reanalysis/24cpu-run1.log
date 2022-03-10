@@ -1,0 +1,21 @@
+Getting ndarray for cyclone 1983325N08148, length 77
+(77, 4, 5, 40, 40)
+Saving ndarray for cyclone 1983325N08148
+Finished processing cyclone 1983325N08148 in 10.08 seconds
+Getting ndarray for cyclone 1985201N12256, length 73
+(73, 4, 5, 40, 40)
+Saving ndarray for cyclone 1985201N12256
+Finished processing cyclone 1985201N12256 in 6.95 seconds
+Getting ndarray for cyclone 1988005N03174, length 111
+(111, 4, 5, 40, 40)
+Saving ndarray for cyclone 1988005N03174
+Finished processing cyclone 1988005N03174 in 43.39 seconds
+Getting ndarray for cyclone 1997359S12129, length 39
+(39, 4, 5, 40, 40)
+Saving ndarray for cyclone 1997359S12129
+Finished processing cyclone 1997359S12129 in 2.51 seconds
+Getting ndarray for cyclone 2008188N14260, length 13
+(13, 4, 5, 40, 40)
+Saving ndarray for cyclone 2008188N14260
+Finished processing cyclone 2008188N14260 in 1.30 seconds
+Finished processing 5 cyclones in 64.31 seconds
