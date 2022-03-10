@@ -1,11 +1,11 @@
 #!/bin/bash
 #PBS -q normal
 #PBS -P x77
-#PBS -N 24cpusfor5cyclones
-#PBS -l ncpus=24
-#PBS -l mem=96GB
+#PBS -N 48cpusfor200cyclones
+#PBS -l ncpus=48
+#PBS -l mem=192GB
 #PBS -l jobfs=100GB
-#PBS -l walltime=0:30:00
+#PBS -l walltime=24:00:00
 #PBS -l storage=scratch/x77+gdata/x77+gdata/hh5+gdata/rt52
 #PBS -l wd
 
@@ -18,6 +18,5 @@ module load python3/3.9.2
 
 # Run Python application
 python3 test_for_cpu.py > $PBS_JOBID-run1.log
-python3 test_for_cpu.py > $PBS_JOBID-run2.log
 #~/.local/bin/pyinstrument test_for_cpu.py > $PBS_JOBID-profile.log
-#python3 test_for_cpu.py > $PBS_JOBID-run2.log
+# python3 test_for_cpu.py > $PBS_JOBID-run2.log
