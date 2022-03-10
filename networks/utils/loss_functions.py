@@ -5,7 +5,7 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
     def __init__(self):
         super(L2_Loss, self).__init__()
     
-    def forward(self, pred_location:torch.Tensor, true_location: torch.Tensor, intensity_func=linear_func, intensity_scale=1000):
+    def forward(self, pred_location:torch.Tensor, true_location: torch.Tensor, intensity: torch.Tensor, intensity_func=linear_func, intensity_scale=1000):
         """
         Here we have two inputs:
             * Predicted location -> (lon, lat, intensity)
