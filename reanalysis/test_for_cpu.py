@@ -16,8 +16,7 @@ with open('../tracks/proc_tracks.json', 'r') as f:
 def get_user_path() -> str:
     # I'm not sure if there's a general way to know what the username is so we'll hardcode Jack's for now
     # -- probably os.getlogin(), but this wasn't quite working for me!
-    return os.getenv("PBS_JOBFS") # just want to run a few core counts at once...
-    #return f'/scratch/x77/ahg157'
+    return '/g/data/x77/jm0124'
 
 def job(ssid) -> None:
     "Saves a binary ndarray for a cyclone given the track JSON and unique ID from the IBTrACS database"
@@ -38,7 +37,7 @@ def job(ssid) -> None:
     # In the paper they use 700, 500, 225
     def f(times, coords):
         return lib.track_to_ndarray_xr(
-            times, coords, levels=[225,500,650,750,850], degree_window=35,
+            times, coords, levels=[225,500,650,750,850], degree_window=40,
         )
 
     s_time = time.perf_counter()
