@@ -1,11 +1,11 @@
 from typing import List, Tuple, Dict
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timezone
 from calendar import monthrange
 import xarray
 import dask
 
-def netcdf_files(time_interval: Tuple[np.datetime64, np.datetime64], sets: List[str]) -> List[str]:
+def netcdf_files(time_interval: Tuple[np.datetime64, np.datetime64], shorthand: str) -> List[Tuple[datetime, str]]:
     """
     Gets a list of absolute file paths to all the files needed for reading specified sets of
     reanalysis data
@@ -23,10 +23,11 @@ def netcdf_files(time_interval: Tuple[np.datetime64, np.datetime64], sets: List[
     for (year, month) in year_month_pairs:
         padded_month = f"{month:02d}" # zero padded month number
         last_day = monthrange(year, month)[1]
-        files.append([
+        # (start datetime, path)
+        files.append((
+            datetime(year, month, 1, tzinfo=timezone.utc),
             f"{basepath}/{shorthand}/{year}/{shorthand}_era5_oper_pl_{year}{padded_month}01-{year}{padded_month}{last_day}.nc"
-            for shorthand in sets
-        ])
+        ))
     return files
 
 def coord_slice(coord: Tuple[float, float],
@@ -80,21 +81,26 @@ def track_to_ndarray_xr(iso_times: List[str],
     time_interval = (min(times), max(times))
     sets = ["u", "v", "z", "pv"]
 
-    ds_dict = {
-        shorthand: xarray.open_mfdataset(
-            netcdf_files(time_interval, [shorthand])[0],
-            chunks={"time": 1, "latitude": 324, "longitude": 360},
-            combine="nested", concat_dim="time"
-        ).sel(level=levels)
-        for shorthand in sets
-    }
-
     out = []
     for shorthand in sets:
-        ds = ds_dict[shorthand]
+        files = netcdf_files(time_interval, shorthand)
+
+        ds_array = [
+            xarray.open_mfdataset(
+                filename,
+                chunks={"time": 1, "latitude": 324, "longitude": 360},
+                combine="nested", concat_dim="time"
+            ).sel(level=levels)
+            for start_time, filename in files
+        ]
 
         res = []
         for time, (lat, lon) in zip(iso_times, coordinates):
+            # get the last dataset with a start time before `time`
+            ds = None
+            for _ds, (start_time, filename) in zip(ds_array[::-1], files[::-1]): # loop backwards
+                if np.datetime64(start_time) < np.datetime64(time):
+                    ds = _ds
             res.append(sample_window(ds.sel(time=time), degree_window, lat, lon))
 
         out.append(xarray.concat(res, "time")[shorthand])
