@@ -5,12 +5,10 @@ import math
 
 # Need to modify
 class UV_Model(nn.Module):
-    def __init__(self, dropout = 0.5, levellist=[2, 5, 7], params = [0]):
+    def __init__(self, time_steps_back=2, pressure_levels=5):
         super(UV_Model, self).__init__()
-        self.in_channels = len(levellist) * len(params)
-        self.adjust_dim = False
-        if len(levellist) > 1 and len(params) >1:
-            self.adjust_dim = True
+
+        self.in_channels = 2*time_steps_back*pressure_levels
 
         self.conv1 = nn.Conv2d(in_channels=self.in_channels, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
         self.conv1_bn = nn.BatchNorm2d(64)
@@ -49,10 +47,8 @@ class UV_Model(nn.Module):
                 nn.init.xavier_normal_(m.weight, gain=math.sqrt(2))
                 nn.init.normal_(m.bias,mean=0, std=1)
 
-    def forward(self, x):
-        x = x[:,[0,1,3,4,6,7],:,:,:]
-        if self.adjust_dim:
-            x = x.view(x.shape[0],x.shape[1]*x.shape[2], x.shape[3], x.shape[4])
+    def forward(self, example):
+        x = example
         x = F.relu(self.conv1_bn(self.conv1(x)))
         x = F.relu(self.conv2_bn(self.conv2(x)))
         x = F.max_pool2d(x, kernel_size=2, stride=2, padding=0)

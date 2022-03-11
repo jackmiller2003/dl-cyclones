@@ -6,7 +6,7 @@ import numpy as np
 import json
 import matplotlib.pyplot as plt
 
-with open('../../tracks/avaliable.json', 'r') as ptj:
+with open('../../tracks/proc_tracks.json', 'r') as ptj:
     tracks_dict = json.load(ptj)
 
 class CycloneDataset(Dataset):
@@ -68,7 +68,7 @@ def get_first_example():
     print(f"Labels batch type: {type(train_labels)}")
     print(f"Feature batch size: {train_features.shape}")
     print(f"Labels batch size: {train_labels.shape}")
-    img = train_features[0][0][0][0].squeeze()
+    img = train_features[0][0][0][1].squeeze()
     label = train_labels[0]
     plt.imshow(img, cmap="gray")
     plt.savefig('example.png')

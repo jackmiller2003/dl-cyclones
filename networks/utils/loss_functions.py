@@ -8,12 +8,17 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
     def __init__(self):
         super(L2_Loss, self).__init__()
     
-    def forward(self, pred_location:torch.Tensor, true_location: torch.Tensor, intensity: torch.Tensor, intensity_func=scaled_linear_func, intensity_scale=1e-2):
+    def forward(self, output_tensor:torch.Tensor, true_tensor: torch.Tensor, intensity_func=scaled_linear_func, intensity_scale=1e-2):
         """
         Here we have two inputs:
             * Predicted location -> (lon, lat, intensity)
             * True location -> (lon, lat, intensity)
         """
+
+        pred_location = output_tensor[0:2]
+        true_location = true_tensor[0:2]
+        pred_intensity = output_tensor[2]
+        true_intensity = true_tensor[2]
 
         R = 6371e3
 
@@ -32,7 +37,7 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
         c = c.double()
         # cyclone_dist = R * c
 
-        return torch.sum(torch.pow(c, 2), intensity_scale * intensity_func(intensity) * intensity) / (pred_location.shape[0])
+        return torch.sum(torch.pow(c, 2), intensity_scale * intensity_func(pred_intensity - true_intensity) * torch.pow((pred_intensity - true_intensity), 2))
 
 
 
