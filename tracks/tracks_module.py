@@ -106,10 +106,10 @@ def all_avaliable_tracks(tracks_file='proc_tracks.json', data_local='/g/data/x77
     
     cyclones_saved = os.listdir(data_local)
     
-    for sid in cyclone_saved:
+    for sid in cyclones_saved:
         if sid in tracks_dict:
             data = {sid:tracks_dict[sid]}
-            append_to_json('avaliable.json', data)
+            append_to_json('available.json', data)
     
     
 

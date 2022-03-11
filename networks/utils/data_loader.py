@@ -6,7 +6,9 @@ import numpy as np
 import json
 import matplotlib.pyplot as plt
 
-with open('../../tracks/proc_tracks.json', 'r') as ptj:
+tracks_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'tracks/available.json')
+
+with open(tracks_path, 'r') as ptj:
     tracks_dict = json.load(ptj)
 
 class CycloneDataset(Dataset):

@@ -4,6 +4,7 @@ import torch
 from models.uv_model import UV_Model
 from models.meta_model import Meta_Model
 import os
+import datetime
 
 data_dir = '/g/data/x77/jm0124/cyclone_binaries'
 models_dir = '/g/data/x77/jm0124/models'
@@ -36,16 +37,17 @@ def train_single_models_epoch(model, epoch, train_dataloader, loss_func, optimiz
 
 def train_single_models(train_dataloader, val_dataloader, learning_rate, betas, eps, weight_decay):
     
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    # timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
     model_uv = UV_Model()
 
-    if model_uv in os.listdir(models_dir)
+    if model_uv in os.listdir(models_dir):
+        model_uv.load_state_dict(torch.load(f'{models_dir}/model_uv'))
 
-    model_uv.load_state_dict(torch.load(f'{models_dir}/model_uv'))
+    # model_uv.load_state_dict(torch.load(f'{models_dir}/model_uv'))
     
-    optimizer = optim.Adam(model_uv.parameters(), lr=learning_rate, betas=betas, eps=1e-8,
-                           weight_decay=weight_decays)
+    optimizer = torch.optim.Adam(model_uv.parameters(), lr=learning_rate, betas=betas, eps=1e-8,
+                           weight_decay=weight_decay)
 
     EPOCHS = 2
 
@@ -84,4 +86,4 @@ if __name__ == '__main__':
     training_loader = torch.utils.data.DataLoader(training_set, batch_size=4, shuffle=True, num_workers=6)
     validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=4, shuffle=False, num_workers=6)
 
-    train_single_models(train_dataloader, val_dataloader, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
+    train_single_models(training_loader, validation_loader, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
