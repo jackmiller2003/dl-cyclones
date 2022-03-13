@@ -99,7 +99,7 @@ def track_to_ndarray_xr(iso_times: List[str],
             # get the last dataset with a start time before `time`
             ds = None
             for _ds, (start_time, filename) in zip(ds_array[::-1], files[::-1]): # loop backwards
-                if np.datetime64(start_time) < np.datetime64(time):
+                if np.datetime64(start_time) <= np.datetime64(time):
                     ds = _ds
             res.append(sample_window(ds.sel(time=time), degree_window, lat, lon))
 

@@ -16,12 +16,13 @@ class CycloneDataset(Dataset):
     Custom dataset for cyclones.
     """
 
-    def __init__(self, cyclone_dir, transform=None, target_transform=None, time_step_back=1):
+    def __init__(self, cyclone_dir, transform=None, target_transform=None, target_parameters=[0,1], time_step_back=1):
         self.tracks_dict = tracks_dict
         self.cyclone_dir = cyclone_dir
         self.transform = transform
         self.target_transform = target_transform
         self.time_step_back = time_step_back
+        self.target_parameters = target_parameters
 
     def __len__(self):
         length = 0
@@ -38,7 +39,14 @@ class CycloneDataset(Dataset):
             for coordinate in data['coordinates']:
                 if i == idx:
                     cyclone_array = np.load(self.cyclone_dir+cyclone)
-                    example = torch.from_numpy(cyclone_array[j-self.time_step_back:j+1,:,:,:,:])
+                    example = torch.from_numpy(cyclone_array[j-self.time_step_back:j+1,self.target_parameters,:,:,:])
+                    print(f"Example shape is: {example.size()}")
+                    num_channels = int(5*len(self.target_parameters)*(1+self.time_step_back))
+                    print(f"Number of channels is: {num_channels}")
+                    if num_channels != example.shape[0] * example.shape[1] * example.shape[2]:
+                        continue
+                    
+                    example = torch.reshape(example, (num_channels,160,160))
                     label = torch.from_numpy(np.array([float(data['coordinates'][j][0]), float(data['coordinates'][j][1]), float(data['categories'][j])]))
                     return example, label
 

@@ -17,7 +17,7 @@ def train_single_models_epoch(model, epoch, train_dataloader, loss_func, optimiz
     for i, (example, truth) in enumerate(train_dataloader):
         optimizer.zero_grad()
 
-        outputs = model(example)
+        output = model(example)
 
         loss = loss_func(output, truth)
         loss.backward()
@@ -39,12 +39,12 @@ def train_single_models(train_dataloader, val_dataloader, learning_rate, betas, 
     
     # timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
+    loss_fn = L2_Dist_Func_Intensity()
+    
     model_uv = UV_Model()
 
     if model_uv in os.listdir(models_dir):
         model_uv.load_state_dict(torch.load(f'{models_dir}/model_uv'))
-
-    # model_uv.load_state_dict(torch.load(f'{models_dir}/model_uv'))
     
     optimizer = torch.optim.Adam(model_uv.parameters(), lr=learning_rate, betas=betas, eps=1e-8,
                            weight_decay=weight_decay)
@@ -58,7 +58,7 @@ def train_single_models(train_dataloader, val_dataloader, learning_rate, betas, 
 
         model_uv.train(True)
         avg_loss = train_single_models_epoch(model_uv, epoch, 
-            train_dataloader, L2_Dist_Func_Intensity, optimizer)
+            train_dataloader, loss_fn, optimizer)
         
         model_uv.train(False)
 
@@ -67,7 +67,7 @@ def train_single_models(train_dataloader, val_dataloader, learning_rate, betas, 
         for i, vdata in enumerate(val_dataloader):
             vinputs, vlabels = vdata
             voutputs = model_uv(vinputs)
-            vloss = L2_Dist_Func_Intensity(voutputs, vlabels)
+            vloss = loss_fn(voutputs, vlabels)
             running_vloss += vloss
         
         avg_vloss = running_vloss / (i+1)
@@ -82,8 +82,8 @@ def train_single_models(train_dataloader, val_dataloader, learning_rate, betas, 
 if __name__ == '__main__':
     splits = {'train':0.7, 'validate':0.1, 'test':0.2}
     training_set, validation_set, test_set = load_datasets(splits)
-
-    training_loader = torch.utils.data.DataLoader(training_set, batch_size=4, shuffle=True, num_workers=6)
-    validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=4, shuffle=False, num_workers=6)
+    
+    training_loader = torch.utils.data.DataLoader(training_set, batch_size=4, shuffle=True, num_workers=1)
+    validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=4, shuffle=False, num_workers=1)
 
     train_single_models(training_loader, validation_loader, 1e-3, (0.9, 0.999), 1e-8, 1e-4)

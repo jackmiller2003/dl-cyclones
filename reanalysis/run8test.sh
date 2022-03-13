@@ -17,7 +17,6 @@ mkdir $PBS_JOBFS/cyclone_binaries
 #module load python3/3.9.2
 
 # Run Python application
-python3 test_for_cpu.py > $PBS_JOBID-run1.log
-python3 test_for_cpu.py > $PBS_JOBID-run2.log
+python3 test_for_cpu.py > $PBS_JOBID-run3.log
 #~/.local/bin/pyinstrument test_for_cpu.py > $PBS_JOBID-profile.log
 #python3 test_for_cpu.py > $PBS_JOBID-run2.log
