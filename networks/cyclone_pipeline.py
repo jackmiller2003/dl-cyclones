@@ -1,6 +1,7 @@
 from utils.loss_functions import L2_Dist_Func_Intensity
 from utils.data_loader import *
 import torch
+from datetime import datetime
 from models.uv_model import UV_Model
 from models.meta_model import Meta_Model
 import os
@@ -26,19 +27,19 @@ def train_single_models_epoch(model, epoch, train_dataloader, loss_func, optimiz
 
         running_loss += loss.item()
 
-        if i % 100 == 99:
-            last_loss = running_loss / 100 # loss per batch
+        if i % 10 == 9:
+            last_loss = running_loss / 10 # loss per batch
             print('  batch {} loss: {}'.format(i + 1, last_loss))
-            tb_x = epoch_index * len(training_loader) + i + 1
-            tb_writer.add_scalar('Loss/train', last_loss, tb_x)
+            # tb_x = epoch * len(training_loader) + i + 1
+            # tb_writer.add_scalar('Loss/train', last_loss, tb_x)
             running_loss = 0
         
+    print("reached end of train single models")
+    
     return last_loss
 
 def train_single_models(train_dataloader, val_dataloader, learning_rate, betas, eps, weight_decay):
     
-    # timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-
     loss_fn = L2_Dist_Func_Intensity()
     
     model_uv = UV_Model()
@@ -83,7 +84,7 @@ if __name__ == '__main__':
     splits = {'train':0.7, 'validate':0.1, 'test':0.2}
     training_set, validation_set, test_set = load_datasets(splits)
     
-    training_loader = torch.utils.data.DataLoader(training_set, batch_size=4, shuffle=True, num_workers=1)
-    validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=4, shuffle=False, num_workers=1)
+    training_loader = torch.utils.data.DataLoader(training_set, batch_size=10, shuffle=False, num_workers=1, drop_last=True)
+    validation_loader = torch.utils.data.DataLoader(validation_set, batch_size=10, shuffle=False, num_workers=1, drop_last=True)
 
     train_single_models(training_loader, validation_loader, 1e-3, (0.9, 0.999), 1e-8, 1e-4)

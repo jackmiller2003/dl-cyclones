@@ -15,8 +15,8 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
             * True location -> (lon, lat, intensity)
         """
         
-        print(f"Output tensor: {output_tensor.size()}")
-        print(f"True tensor: {true_tensor.size()}")
+        # print(f"Output tensor: {output_tensor.size()}")
+        # print(f"True tensor: {true_tensor.size()}")
 
         pred_location = output_tensor[:,0:2]
         true_location = true_tensor[:, 0:2]
@@ -25,24 +25,24 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
         true_intensity = true_tensor[:,2]
         true_intensity = true_intensity.view(-1,1)
 
-        print(f"Predicted location: {pred_location}")
-        print(f"True location: {true_location}")
-        print(f"Predicted intensity: {pred_intensity}")
-        print(f"True intensity: {true_intensity}")
+        # print(f"Predicted location: {pred_location}")
+        # print(f"True location: {true_location}")
+        # print(f"Predicted intensity: {pred_intensity}")
+        # print(f"True intensity: {true_intensity}")
         
         R = 6371e3
 
         lon0, lat0 = true_location[:,0], true_location[:,1]
         lon1,lat1 = pred_location[:,0], pred_location[:,1]
         
-        print(f"lat0 = {lat0}")
-        print(f"lat1 = {lat1}")
+        # print(f"lat0 = {lat0}")
+        # print(f"lat1 = {lat1}")
 
         phi0 = lat0 * (math.pi/180) # Rads
         phi1 = lat1 * (math.pi/180)
         
-        print(phi0)
-        print(phi1)
+        # print(phi0)
+        # print(phi1)
 
         delta_phi = phi1 - phi0
         delta_lambda = (lon1 - lon0) * (math.pi/180)

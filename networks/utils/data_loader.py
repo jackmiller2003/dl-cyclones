@@ -19,35 +19,38 @@ class CycloneDataset(Dataset):
     def __init__(self, cyclone_dir, transform=None, target_transform=None, target_parameters=[0,1], time_step_back=1):
         self.tracks_dict = tracks_dict
         self.cyclone_dir = cyclone_dir
-        self.transform = transform
         self.target_transform = target_transform
         self.time_step_back = time_step_back
         self.target_parameters = target_parameters
 
+        
+    # I think this function might be causing issues.
     def __len__(self):
         length = 0
         for cyclone, data in tracks_dict.items():
-            length += len(data['coordinates'])
+            length += len(data['coordinates'][:-2])
         
-        return length
-
+        return length            
+    
     def __getitem__(self, idx):
         i = 0
 
         for cyclone, data in tracks_dict.items():
-            j = self.time_step_back
-            for coordinate in data['coordinates']:
+            j = self.time_step_back + 1
+            for coordinate in data['coordinates'][:-2]:
                 if i == idx:
+                    
                     cyclone_array = np.load(self.cyclone_dir+cyclone)
-                    example = torch.from_numpy(cyclone_array[j-self.time_step_back:j+1,self.target_parameters,:,:,:])
-                    print(f"Example shape is: {example.size()}")
+                    example = torch.from_numpy(cyclone_array[j-self.time_step_back-1:j,self.target_parameters,:,:,:])
                     num_channels = int(5*len(self.target_parameters)*(1+self.time_step_back))
-                    print(f"Number of channels is: {num_channels}")
+
                     if num_channels != example.shape[0] * example.shape[1] * example.shape[2]:
-                        continue
+                        print("Wrong shape detected")
+                        
                     
                     example = torch.reshape(example, (num_channels,160,160))
                     label = torch.from_numpy(np.array([float(data['coordinates'][j][0]), float(data['coordinates'][j][1]), float(data['categories'][j])]))
+                    
                     return example, label
 
                 i += 1
@@ -71,13 +74,13 @@ def get_first_example():
     train_dataloader = DataLoader(training_data, batch_size=4, shuffle=False)
     
     train_features, train_labels = next(iter(train_dataloader))
-    print(train_features)
-    print(train_labels)
+    # print(train_features)
+    # print(train_labels)
 
-    print(f"Feature batch type: {type(train_features)}")
-    print(f"Labels batch type: {type(train_labels)}")
-    print(f"Feature batch size: {train_features.shape}")
-    print(f"Labels batch size: {train_labels.shape}")
+    # print(f"Feature batch type: {type(train_features)}")
+    # print(f"Labels batch type: {type(train_labels)}")
+    # print(f"Feature batch size: {train_features.shape}")
+    # print(f"Labels batch size: {train_labels.shape}")
     img = train_features[0][0][0][1].squeeze()
     label = train_labels[0]
     plt.imshow(img, cmap="gray")
