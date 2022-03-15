@@ -55,7 +55,32 @@ class CycloneDataset(Dataset):
 
                 i += 1
                 j += 1
+
+class MetaDataset(Dataset):
+    """
+    Custom dataset for meta data that we use to train the shallow network.
+    """
+
+
+    def __init__(self, time_step_back, target_parameters):
+        self.time_step_back = time_step_back
+        self.target_parameters = target_parameters
+    
+    def __len__(self):
+        for cyclone, data in tracks_dict.items():
+            length += len(data['coordinates'][:-2])
         
+        return length
+    
+    def __getitem__(self, idx):
+        i = 0
+
+        for cyclone, data in tracks_dict.items():
+            j = self.time_step_back + 1
+
+            # Need to include more logic from here...
+
+
 def load_datasets(splits: dict):
     full_dataset = CycloneDataset(cyclone_dir='/g/data/x77/jm0124/cyclone_binaries/')
     full_length = len(full_dataset)

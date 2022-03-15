@@ -49,16 +49,13 @@ class UV_Model(nn.Module):
                 nn.init.xavier_normal_(m.weight, gain=math.sqrt(2))
                 nn.init.normal_(m.bias,mean=0, std=1)
 
-    def forward(self, example):
-        print(f"Example size: {example.size()}")
-        
+    def forward(self, example):        
         x = example
         x = F.relu(self.conv1_bn(self.conv1(x)))
         x = F.relu(self.conv2_bn(self.conv2(x)))
         x = F.max_pool2d(x, kernel_size=2, stride=2, padding=0)
         x = F.relu(self.conv3_bn(self.conv3(x)))
         x = F.max_pool2d(x, kernel_size=2, stride=2, padding=0)
-        print(x.size())
         x = x.view(-1, 256*38*38)
         x = F.relu(self.fc1_bn(self.fc1(x)))
         x = F.relu(self.fc2_bn(self.fc2(x)))
