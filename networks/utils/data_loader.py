@@ -66,7 +66,7 @@ class MetaDataset(Dataset):
     """
 
 
-    def __init__(self, time_step_back, target_parameters):
+    def __init__(self, time_step_back=1):
         self.time_step_back = time_step_back
         self.target_parameters = target_parameters
     
@@ -106,15 +106,40 @@ class MetaDataset(Dataset):
 
 
 def load_datasets(splits: dict):
-    full_dataset = CycloneDataset(cyclone_dir='/g/data/x77/jm0124/cyclone_binaries/')
-    full_length = len(full_dataset)
+    full_dataset_uv = CycloneDataset(cyclone_dir='/g/data/x77/jm0124/cyclone_binaries/')
+    full_length = len(full_dataset_uv)
     train_length = int(splits['train']*full_length)
     val_length = int(splits['validate']*full_length)
     test_length = full_length - train_length - val_length
-    train_dataset, validate_dataset, test_dataset = torch.utils.data.random_split(full_dataset, 
+    train_dataset_uv, validate_dataset_uv, test_dataset_uv = torch.utils.data.random_split(full_dataset_uv, 
         [train_length, val_length, test_length])
 
-    return train_dataset, validate_dataset, test_dataset
+    full_dataset_z = CycloneDataset(cyclone_dir='/g/data/x77/jm0124/cyclone_binaries/', target_parameters=[2])
+
+    train_dataset_z, validate_dataset_z, test_dataset_z = torch.utils.data.random_split(full_dataset_z, 
+        [train_length, val_length, test_length])
+
+    full_dataset_meta = MetaDataset()
+
+    if full_length != meta_length:
+        raise Exception('Something is wrong with the meta length!')
+    
+    train_dataset_meta, validate_dataset_meta, test_dataset_meta = torch.utils.data.random_split(full_dataset_meta, 
+        [train_length, val_length, test_length])
+
+    return train_dataset_uv, validate_dataset_uv, test_dataset_uv, train_dataset_z, validate_dataset_z, test_dataset_z, train_dataset_meta, validate_dataset_meta, test_dataset_meta
+
+# def load_meta_datasets(splits: dict):
+#     meta_dataset = MetaDataset()
+#     meta_length = len(meta_dataset)
+#     train_length = int(splits['train']*full_length)
+#     val_length = int(splits['validate']*full_length)
+#     test_length = full_length - train_length - val_length
+
+#     train_dataset, validate_dataset, test_dataset = torch.utils.data.random_split(meta_dataset, 
+#         [train_length, val_length, test_length])
+    
+#     return train_dataset, validate_dataset, test_dataset
 
 def get_first_example():
     # Display image and label.
