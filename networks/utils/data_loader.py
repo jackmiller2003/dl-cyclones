@@ -59,6 +59,10 @@ class CycloneDataset(Dataset):
 class MetaDataset(Dataset):
     """
     Custom dataset for meta data that we use to train the shallow network.
+
+    Question at the moment is how to represent basins in the metadata?
+        - 1-hot would require knowledge of all the basins... this requires writing some code to parse through the JSON.
+        - As a result, we've left it out for now but it should be included later.
     """
 
 
@@ -78,7 +82,27 @@ class MetaDataset(Dataset):
         for cyclone, data in tracks_dict.items():
             j = self.time_step_back + 1
 
-            # Need to include more logic from here...
+            for coordinate in data['coordinates'][:-2]:
+                if i == idx:
+                    example = torch.from_numpy(np.array([
+                        data['categories'][j-2],
+                        data['categories'][j-1],
+                        data['coordinates'][j-2][0],
+                        data['coordinates'][j-2][1],
+                        data['coordinates'][j-1][0],
+                        data['coordinates'][j-1][1]
+                    ]))
+
+                    label = torch.from_numpy(np.array([
+                        data['coordinates'][j][0],
+                        data['coordinates'][j][1],
+                        data['categories'][j]
+                    ]))
+
+                    return example, label
+
+                i += 1
+                j += 1
 
 
 def load_datasets(splits: dict):
