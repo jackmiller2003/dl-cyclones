@@ -9,9 +9,9 @@ class Meta_Model(nn.Module):
         super(Meta_Model, self).__init__()
 
         # We wish to include basin, sub_basin, pressures, lat, lon, category, season
-        in_channels = time_step_back * 7
-        self.fc1 = nn.Linear(in_features=in_channels, out_features=8)
-        self.fc2 = nn.Linear(in_features=8, out_features=2)
+        in_channels = time_step_back * 3
+        self.fc1 = nn.Linear(in_features=in_channels, out_features=5)
+        self.fc2 = nn.Linear(in_features=5, out_features=3)
 
     def init_weights(self):
         for idx, m in enumerate(self.modules()):
@@ -35,6 +35,6 @@ class Meta_Model(nn.Module):
                 nn.init.normal_(m.bias,mean=0, std=1)
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc1(x.float()))
         x = self.fc2(x)
         return x

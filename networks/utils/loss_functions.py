@@ -15,8 +15,8 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
             * True location -> (lon, lat, intensity)
         """
         
-        # print(f"Output tensor: {output_tensor.size()}")
-        # print(f"True tensor: {true_tensor.size()}")
+        print(f"Output tensor: {output_tensor.size()}")
+        print(f"True tensor: {true_tensor.size()}")
 
         pred_location = output_tensor[:,0:2]
         true_location = true_tensor[:, 0:2]

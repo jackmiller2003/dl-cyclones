@@ -12,14 +12,14 @@ class UV_Model(nn.Module):
         
         print(self.in_channels)
 
-        self.conv1 = nn.Conv2d(in_channels=self.in_channels, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
+        self.conv1 = nn.Conv2d(in_channels=self.in_channels, out_channels=64, kernel_size=3, stride=2, padding=0, groups=1, bias=True)
         self.conv1_bn = nn.BatchNorm2d(64)
         self.conv2 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
         self.conv2_bn = nn.BatchNorm2d(64)
-        self.conv3 = nn.Conv2d(in_channels=64, out_channels=256, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
-        self.conv3_bn = nn.BatchNorm2d(256)
+        self.conv3 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
+        self.conv3_bn = nn.BatchNorm2d(64) # We can play with this
 
-        self.fc1 = nn.Linear(in_features=256*38*38, out_features=576)
+        self.fc1 = nn.Linear(in_features=64*19*19, out_features=576)
         self.fc1_bn = nn.BatchNorm1d(576)
         self.fc2 = nn.Linear(in_features=576, out_features=128)
         self.fc2_bn = nn.BatchNorm1d(128)
@@ -61,4 +61,5 @@ class UV_Model(nn.Module):
         x = F.relu(self.fc2_bn(self.fc2(x)))
         x = F.relu(self.fc3_bn(self.fc3(x)))
         x = self.fc4(x)
+        print(x.size())
         return x

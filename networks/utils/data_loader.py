@@ -5,6 +5,7 @@ import os
 import numpy as np
 import json
 import matplotlib.pyplot as plt
+import xarray as xr
 
 tracks_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'tracks/available.json')
 
@@ -14,6 +15,8 @@ with open(tracks_path, 'r') as ptj:
 class CycloneDataset(Dataset):
     """
     Custom dataset for cyclones.
+
+    TODO: Need to test
     """
 
     def __init__(self, cyclone_dir, transform=None, target_transform=None, target_parameters=[0,1], time_step_back=1):
@@ -40,8 +43,13 @@ class CycloneDataset(Dataset):
             for coordinate in data['coordinates'][:-2]:
                 if i == idx:
                     
-                    cyclone_array = np.load(self.cyclone_dir+cyclone)
-                    example = torch.from_numpy(cyclone_array[j-self.time_step_back-1:j,self.target_parameters,:,:,:])
+                    cyclone_ds = xr.open_dataset(self.cyclone_dir+cyclone+".nc")
+                    
+                    print(cyclone_ds)
+
+                    cyclone_ds_crop = cyclone_ds[j-self.time_step_back-1:j,self.target_parameters,:,:,:]
+                    cyclone_array = cyclone_ds_crop.values
+                    example = torch.from_numpy(cyclone_array)
                     num_channels = int(5*len(self.target_parameters)*(1+self.time_step_back))
 
                     if num_channels != example.shape[0] * example.shape[1] * example.shape[2]:
@@ -68,9 +76,10 @@ class MetaDataset(Dataset):
 
     def __init__(self, time_step_back=1):
         self.time_step_back = time_step_back
-        self.target_parameters = target_parameters
     
     def __len__(self):
+        length = 0
+        
         for cyclone, data in tracks_dict.items():
             length += len(data['coordinates'][:-2])
         
@@ -85,18 +94,18 @@ class MetaDataset(Dataset):
             for coordinate in data['coordinates'][:-2]:
                 if i == idx:
                     example = torch.from_numpy(np.array([
-                        data['categories'][j-2],
-                        data['categories'][j-1],
-                        data['coordinates'][j-2][0],
-                        data['coordinates'][j-2][1],
-                        data['coordinates'][j-1][0],
-                        data['coordinates'][j-1][1]
+                        float(data['categories'][j-2]),
+                        float(data['categories'][j-1]),
+                        float(data['coordinates'][j-2][0]),
+                        float(data['coordinates'][j-2][1]),
+                        float(data['coordinates'][j-1][0]),
+                        float(data['coordinates'][j-1][1])
                     ]))
 
                     label = torch.from_numpy(np.array([
-                        data['coordinates'][j][0],
-                        data['coordinates'][j][1],
-                        data['categories'][j]
+                        float(data['coordinates'][j][0]),
+                        float(data['coordinates'][j][1]),
+                        float(data['categories'][j])
                     ]))
 
                     return example, label
@@ -120,6 +129,7 @@ def load_datasets(splits: dict):
         [train_length, val_length, test_length])
 
     full_dataset_meta = MetaDataset()
+    meta_length = len(full_dataset_meta)
 
     if full_length != meta_length:
         raise Exception('Something is wrong with the meta length!')
