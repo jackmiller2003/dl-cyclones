@@ -54,7 +54,7 @@ def track_single_set_to_xarray(times: List[datetime],
                                coordinates: List[Tuple[float, float]],
                                dataset: str,
                                levels: List[int],
-                               degree_window: int) -> xarray.Dataset:
+                               degree_window: int) -> xarray.DataArray:
     """
     Sample a track given as times and coordinate locations, at the specified levels, with a given window
     around each point.
@@ -71,7 +71,7 @@ def track_single_set_to_xarray(times: List[datetime],
     ]
 
     res = []
-    for time, (lat, long) in zip(iso_times, coordinates):
+    for time, (lat, long) in zip(times, coordinates):
         # get the last dataset with a start time before `time`
         ds = None
         start_time = None
@@ -91,11 +91,15 @@ def track_single_set_to_xarray(times: List[datetime],
     return xarray.concat(res, "time")
 
 def track_to_xarray_dataset(times: List[str], coordinates: List[Tuple[float, float]],
-                            levels: List[int], degree_window: int, n_workers: int) -> xarray.Dataset:
+                            levels: List[int], degree_window: int) -> xarray.Dataset:
     times: list[datetime] = [np.datetime64(iso_time).item() for iso_time in times]
     sets = ["u", "v", "z", "pv"]
-    sets_bag = db.from_sequence(times, npartitions=n_workers)
+
     def f(dataset):
         return track_single_set_to_xarray(times, coordinates, dataset, levels, degree_window)
-    set_dataarrays = db.map_partitions(f, sets_bag)
+
+    # get each dataarray in parallel
+    set_dataarrays: List[xarray.DataArray] = dask.compute(*[dask.delayed(f)(dataset) for dataset in sets])
+
+    print(set_dataarrays)
     return xarray.merge(set_dataarrays)

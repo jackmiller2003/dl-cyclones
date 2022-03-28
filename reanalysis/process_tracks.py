@@ -26,7 +26,6 @@ def create_netcdf_file_for_track(ssid) -> None:
     track = tracks[ssid]
     print(f"Getting ndarray for cyclone {ssid}, length {len(track['iso_times'])}")
 
-    n_workers = len(client.scheduler_info()["workers"])
     #p = pyinstrument.Profiler()
 
     times = track["iso_times"]
@@ -36,7 +35,7 @@ def create_netcdf_file_for_track(ssid) -> None:
     s_time = time.perf_counter()
     #p.start()
 
-    cyclone = lib.track_to_xarray_dataset(times, coords, levels, degree_window=40, n_workers=n_workers)
+    cyclone = lib.track_to_xarray_dataset(times, coords, levels, degree_window=40)
     cyclone.to_netcdf(f'{get_user_path()}/cyclone_binaries/{ssid}.nc', format='NETCDF4', engine='netcdf4')
 
     #p.stop()
@@ -48,9 +47,12 @@ def create_netcdf_file_for_track(ssid) -> None:
 if __name__ == '__main__':
     print("Initialising...")
     client = Client(threads_per_worker=1, local_directory=os.getenv("PBS_JOBFS"))
+    n_workers = len(client.scheduler_info()["workers"])
     s_time = time.perf_counter()
 
-    track_ids = list(tracks.keys())
+    track_ids = list(tracks.keys())[0:1]
+    # TODO: this should have try/except and run multiple concurrently
+    #    dask.compute(*[dask.delayed
     for ssid in track_ids:
         create_netcdf_file_for_track(ssid)
 
