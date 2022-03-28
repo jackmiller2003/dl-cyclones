@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from calendar import monthrange
 import xarray
 import dask
+from traceback import print_exc
 
 def netcdf_files(time_interval: Tuple[np.datetime64, np.datetime64], shorthand: str) -> List[Tuple[datetime, str]]:
     """
@@ -22,6 +23,7 @@ def netcdf_files(time_interval: Tuple[np.datetime64, np.datetime64], shorthand: 
     files = []
     for (year, month) in year_month_pairs:
         padded_month = f"{month:02d}" # zero padded month number
+        # don't use monthrange, find the single filename that matches
         last_day = monthrange(year, month)[1]
         # (start datetime, path)
         files.append((
@@ -56,7 +58,7 @@ def sample_window(ds: xarray.DataArray, degrees: float, lat: float, lon: float) 
         chunks.append(
             ds
             .sel(coord_slice((lat, lon + offset), degrees))
-            .isel(longitude=slice(None, points), latitude=slice(None, points))
+            .isel(longitude=slice(-points, None), latitude=slice(None, points))
             .reset_index(["longitude", "latitude"], drop=True)
         )
 
@@ -98,14 +100,22 @@ def track_to_ndarray_xr(iso_times: List[str],
         for time, (lat, lon) in zip(iso_times, coordinates):
             # get the last dataset with a start time before `time`
             ds = None
-            for _ds, (start_time, filename) in zip(ds_array[::-1], files[::-1]): # loop backwards
-                if np.datetime64(start_time) <= np.datetime64(time):
+            start_time = None
+            filename = None
+            for _ds, (_start_time, _filename) in zip(ds_array[::-1], files[::-1]): # loop backwards
+                if np.datetime64(_start_time) <= np.datetime64(time):
                     ds = _ds
-            res.append(sample_window(ds.sel(time=time), degree_window, lat, lon))
+                    start_time = _start_time
+                    filename = _filename
+            try:
+                res.append(sample_window(ds.sel(time=time), degree_window, lat, lon))
+            except Exception as e:
+                print_exc()
+                print(start_time, filename, time, lat, lon, degree_window)
 
         out.append(xarray.concat(res, "time")[shorthand])
 
     # concat the different variables along a new "sets" dimension, and set this
     # to be the second dimension (matching the original behaviour)
-    mapped = xarray.concat(out, "sets").transpose("time", "sets", ...)
+    mapped = xarray.concat(out, "sets").transpose("time", "sets", "level", "longitude", "latitude")
     return mapped.load(scheduler="synchronous")
