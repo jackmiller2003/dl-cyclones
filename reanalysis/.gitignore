@@ -1,5 +1,7 @@
 8cpusfor5cyclones.e*
 8cpusfor5cyclones.o*
+process_tracks.o*
+process_tracks.e*
 *.nc
 *.log
 

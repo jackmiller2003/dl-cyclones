@@ -1,7 +1,7 @@
 #!/bin/bash
 #PBS -q normal
 #PBS -P x77
-#PBS -N 8cpusfor5cyclones
+#PBS -N process_tracks
 #PBS -l ncpus=8
 #PBS -l mem=32GB
 #PBS -l jobfs=100GB
@@ -17,7 +17,5 @@ mkdir $PBS_JOBFS/cyclone_binaries
 #module load python3/3.9.2
 
 # Run Python application
-python3 test_for_cpu.py > $PBS_JOBID-run1.log
-#python3 test_for_cpu.py > $PBS_JOBID-run2.log
-#~/.local/bin/pyinstrument test_for_cpu.py > $PBS_JOBID-profile.log
-#python3 test_for_cpu.py > $PBS_JOBID-run2.log
+python3 process_tracks.py $(whoami) > $PBS_JOBID.log
+#~/.local/bin/pyinstrument process_tracks.py > $PBS_JOBID-profile.log
