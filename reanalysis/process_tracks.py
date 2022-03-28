@@ -38,7 +38,7 @@ def job(ssid) -> None:
 
     # In the paper they use 700, 500, 225
     def f(times):
-        return lib.track_to_ndarray_xr(#,650,750,850
+        return lib.track_to_xarray(#,650,750,850
             times, coords, levels=[225,500], degree_window=40,
         )
 
@@ -65,9 +65,9 @@ def get_some_cyclones_list(list_of_cyclones) -> None:
 
 if __name__ == '__main__':
     print(get_user_path())
-#    client = Client(threads_per_worker=1, local_directory=os.getenv("PBS_JOBFS"))
-#    o_time = time.perf_counter()
-#    cyclones = list(range(0,1))
-#    get_some_cyclones_list(cyclones)
-#    n_time = time.perf_counter()
-#    print(f"Finished processing {len(cyclones)} cyclones in {n_time-o_time:.2f} seconds")
+    client = Client(threads_per_worker=1, local_directory=os.getenv("PBS_JOBFS"))
+    o_time = time.perf_counter()
+    cyclones = list(range(0,1))
+    get_some_cyclones_list(cyclones)
+    n_time = time.perf_counter()
+    print(f"Finished processing {len(cyclones)} cyclones in {n_time-o_time:.2f} seconds")
