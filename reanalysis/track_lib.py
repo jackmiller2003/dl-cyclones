@@ -39,8 +39,12 @@ def sample_window(ds: xarray.DataArray, degrees: float, lat: float, long: float)
     periodic X boundary.
     """
     points = int(round(degrees / 0.25)) # ERA5 uses a 0.25 deg interval everywhere
+    # we select a window of data around (lat,long), (lat,long+360) and (lat,long-360) noting that
+    # the selection will return an empty result if it has the wrong multiple of 360 (modulo isn't applied)
+    # if the window wraps the border, two of the chunks will have half the data each, and concat'ing them
+    # combines them back into one
     chunks = []
-    for offset in [-360, 0, 360]:
+    for offset in [360, 0, -360]:
         chunks.append(
             ds.sel(coord_slice(lat, long + offset, degrees))
               .isel(longitude=slice(None, points), latitude=slice(None, points))

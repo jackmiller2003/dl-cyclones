@@ -46,15 +46,16 @@ def create_netcdf_file_for_track(ssid) -> None:
 
 if __name__ == '__main__':
     print("Initialising...")
-    client = Client(threads_per_worker=1, local_directory=os.getenv("PBS_JOBFS"))
-    n_workers = len(client.scheduler_info()["workers"])
+    #client = Client(threads_per_worker=1, local_directory=os.getenv("PBS_JOBFS"))
+    #n_workers = len(client.scheduler_info()["workers"])
     s_time = time.perf_counter()
 
     track_ids = list(tracks.keys())[0:1]
     # TODO: this should have try/except and run multiple concurrently
     #    dask.compute(*[dask.delayed
-    for ssid in track_ids:
-        create_netcdf_file_for_track(ssid)
+    # for ssid in track_ids:
+    #     create_netcdf_file_for_track(ssid)
+    create_netcdf_file_for_track("1979238N12324")
 
     e_time = time.perf_counter()
     print(f"Finished processing {len(track_ids)} cyclones in {e_time-s_time:.2f} seconds")
