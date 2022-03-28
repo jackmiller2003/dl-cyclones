@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+rm *.e*
+rm *.o*
+rm *.log
+echo "Cleaned log files"
+
