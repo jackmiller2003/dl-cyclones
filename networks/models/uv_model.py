@@ -56,7 +56,7 @@ class UV_Model(nn.Module):
         x = F.max_pool2d(x, kernel_size=2, stride=2, padding=0)
         x = F.relu(self.conv3_bn(self.conv3(x)))
         x = F.max_pool2d(x, kernel_size=2, stride=2, padding=0)
-        x = x.view(-1, 256*38*38)
+        x = x.view(-1, 64*19*19)
         x = F.relu(self.fc1_bn(self.fc1(x)))
         x = F.relu(self.fc2_bn(self.fc2(x)))
         x = F.relu(self.fc3_bn(self.fc3(x)))

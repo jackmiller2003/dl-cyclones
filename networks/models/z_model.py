@@ -11,14 +11,14 @@ class Z_Model(nn.Module):
         
         print(self.in_channels)
 
-        self.conv1 = nn.Conv2d(in_channels=self.in_channels, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
+        self.conv1 = nn.Conv2d(in_channels=self.in_channels, out_channels=64, kernel_size=3, stride=2, padding=0, groups=1, bias=True)
         self.conv1_bn = nn.BatchNorm2d(64)
         self.conv2 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
         self.conv2_bn = nn.BatchNorm2d(64)
         self.conv3 = nn.Conv2d(in_channels=64, out_channels=256, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
         self.conv3_bn = nn.BatchNorm2d(256)
 
-        self.fc1 = nn.Linear(in_features=256*38*38, out_features=576)
+        self.fc1 = nn.Linear(in_features=256*19*19, out_features=576)
         self.fc1_bn = nn.BatchNorm1d(576)
         self.fc2 = nn.Linear(in_features=576, out_features=128)
         self.fc2_bn = nn.BatchNorm1d(128)
@@ -55,7 +55,7 @@ class Z_Model(nn.Module):
         x = F.max_pool2d(x, kernel_size=2, stride=2, padding=0)
         x = F.relu(self.conv3_bn(self.conv3(x)))
         x = F.max_pool2d(x, kernel_size=2, stride=2, padding=0)
-        x = x.view(-1, 256*38*38)
+        x = x.view(-1, 256*19*19)
         x = F.relu(self.fc1_bn(self.fc1(x)))
         x = F.relu(self.fc2_bn(self.fc2(x)))
         x = F.relu(self.fc3_bn(self.fc3(x)))

@@ -5,7 +5,7 @@ import os
 import numpy as np
 import json
 import matplotlib.pyplot as plt
-import xarray as xr
+import xarray
 
 tracks_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'tracks/available.json')
 
@@ -43,12 +43,14 @@ class CycloneDataset(Dataset):
             for coordinate in data['coordinates'][:-2]:
                 if i == idx:
                     
-                    cyclone_ds = xr.open_dataset(self.cyclone_dir+cyclone+".nc")
-                    
-                    print(cyclone_ds)
-
-                    cyclone_ds_crop = cyclone_ds[j-self.time_step_back-1:j,self.target_parameters,:,:,:]
-                    cyclone_array = cyclone_ds_crop.values
+                    cyclone_ds = xarray.open_dataset(self.cyclone_dir+cyclone)
+                    cyclone_ds_crop = cyclone_ds.to_array().to_numpy()
+                    cyclone_ds_crop = np.transpose(cyclone_ds_crop, (1, 0, 2, 3,4))
+                    print(f"Cyclone {cyclone} with {np.shape(cyclone_ds_crop)}")
+                    # print(f"Original crop {str(np.shape(cyclone_ds_crop))}")
+                    # print(f"Time crop {j-self.time_step_back-1} and {j}")
+                    cyclone_array = cyclone_ds_crop[j-self.time_step_back-1:j,self.target_parameters,:,:,:]
+                    # print(f"Cyclone array {np.shape(cyclone_array)}")
                     example = torch.from_numpy(cyclone_array)
                     num_channels = int(5*len(self.target_parameters)*(1+self.time_step_back))
 
@@ -115,7 +117,7 @@ class MetaDataset(Dataset):
 
 
 def load_datasets(splits: dict):
-    full_dataset_uv = CycloneDataset(cyclone_dir='/g/data/x77/jm0124/cyclone_binaries/')
+    full_dataset_uv = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/cyclone_binaries/')
     full_length = len(full_dataset_uv)
     train_length = int(splits['train']*full_length)
     val_length = int(splits['validate']*full_length)
@@ -123,7 +125,7 @@ def load_datasets(splits: dict):
     train_dataset_uv, validate_dataset_uv, test_dataset_uv = torch.utils.data.random_split(full_dataset_uv, 
         [train_length, val_length, test_length])
 
-    full_dataset_z = CycloneDataset(cyclone_dir='/g/data/x77/jm0124/cyclone_binaries/', target_parameters=[2])
+    full_dataset_z = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/cyclone_binaries/', target_parameters=[2])
 
     train_dataset_z, validate_dataset_z, test_dataset_z = torch.utils.data.random_split(full_dataset_z, 
         [train_length, val_length, test_length])
@@ -154,7 +156,7 @@ def load_datasets(splits: dict):
 def get_first_example():
     # Display image and label.
 
-    training_data = CycloneDataset(cyclone_dir='/g/data/x77/jm0124/cyclone_binaries/', time_step_back=1)
+    training_data = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/cyclone_binaries/', time_step_back=1)
     train_dataloader = DataLoader(training_data, batch_size=4, shuffle=False)
     
     train_features, train_labels = next(iter(train_dataloader))

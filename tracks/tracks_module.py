@@ -5,6 +5,7 @@ import sys
 import csv
 from utilities import *
 from tqdm import tqdm
+import numpy as np
 
 with open('proc_tracks.json', 'r+') as pt:
     cyclone_dict = json.load(pt)
@@ -100,16 +101,25 @@ def convert_lat_lon(tracks_file='tracks.json', proc_tracks_file='proc_tracks.jso
         new_dict['coordinates'] = new_coords
         add_to_json(sid, new_dict, proc_tracks_file)
 
-def all_avaliable_tracks(tracks_file='proc_tracks.json', data_local='/g/data/x77/jm0124/cyclone_binaries'):
+def all_avaliable_tracks(tracks_file='proc_tracks.json', data_local='/g/data/x77/ob2720/cyclone_binaries'):
     with open(tracks_file, 'r') as tracks_json:
         tracks_dict = json.load(tracks_json)
     
     cyclones_saved = os.listdir(data_local)
     
+    print(cyclones_saved)
+    
     for sid in cyclones_saved:
-        if sid in tracks_dict:
-            data = {sid:tracks_dict[sid]}
-            append_to_json('available.json', data)
+        if sid[:-3] in tracks_dict:
+            previous_month = np.datetime64(tracks_dict[sid[:-3]]['iso_times'][0]).astype(object).month
+            for iso_time in tracks_dict[sid[:-3]]['iso_times']:
+                current_month = (np.datetime64(iso_time)).astype(object).month
+                if current_month != previous_month:
+                    break
+                previous_month = (np.datetime64(iso_time)).astype(object).month
+            else:
+                data = {sid:tracks_dict[sid[:-3]]}
+                append_to_json('available.json', data)
     
     
 

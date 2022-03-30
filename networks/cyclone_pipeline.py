@@ -7,8 +7,9 @@ from models.z_model import Z_Model
 from models.meta_model import Meta_Model
 import os
 import datetime
+import xarray
 
-data_dir = '/g/data/x77/jm0124/cyclone_binaries'
+data_dir = '/g/data/x77/ob2720/cyclone_binaries/'
 models_dir = '/g/data/x77/jm0124/models'
 
 def train_single_models_epoch(model, epoch, train_dataloader, loss_func, optimizer):
@@ -81,22 +82,22 @@ def train_single_models(train_dataloader_uv, val_dataloader_uv, train_dataloader
 
     model_uv = UV_Model()
 
-    if 'model_uv' in os.listdir(models_dir):
-        model_uv.load_state_dict(torch.load(f'{models_dir}/model_uv'))
+    # if 'model_uv' in os.listdir(models_dir):
+    #     model_uv.load_state_dict(torch.load(f'{models_dir}/model_uv'))
     
     print("Model UV loaded")
     
     model_z = Z_Model()
 
-    if 'model_z' in os.listdir(models_dir):
-        model_z.load_state_dict(torch.load(f'{models_dir}/model_z'))
+    # if 'model_z' in os.listdir(models_dir):
+    #     model_z.load_state_dict(torch.load(f'{models_dir}/model_z'))
     
     print("Model z loaded")
 
     model_meta = Meta_Model()
 
-    if 'model_z' in os.listdir(models_dir):
-        model_meta.load_state_dict(torch.load(f'{models_dir}/model_meta'))
+    # if 'model_z' in os.listdir(models_dir):
+    #     model_meta.load_state_dict(torch.load(f'{models_dir}/model_meta'))
     
     print("Model meta loaded")
 
@@ -108,23 +109,22 @@ def train_single_models(train_dataloader_uv, val_dataloader_uv, train_dataloader
 
     EPOCHS = 2
 
-
-    # train_component(model_uv, train_dataloader_uv, val_dataloader_uv, loss_fn, optimizer, "model_uv", EPOCHS)
+    train_component(model_uv, train_dataloader_uv, val_dataloader_uv, loss_fn, optimizer, "model_uv", EPOCHS)
     # train_component(model_z, train_dataloader_z, val_dataloader_z, loss_fn, optimizer, "model_z", EPOCHS)
-    train_component(model_meta, train_dataloader_meta, val_dataloader_meta, loss_fn, optimizer, "model_meta", EPOCHS)
+    # train_component(model_meta, train_dataloader_meta, val_dataloader_meta, loss_fn, optimizer, "model_meta", EPOCHS)
 
 if __name__ == '__main__':
     splits = {'train':0.7, 'validate':0.1, 'test':0.2}
     train_dataset_uv, validate_dataset_uv, test_dataset_uv, train_dataset_z, validate_dataset_z, test_dataset_z, train_dataset_meta, validate_dataset_meta, test_dataset_meta = load_datasets(splits)
 
-    training_loader_uv = torch.utils.data.DataLoader(train_dataset_uv, batch_size=10, shuffle=False, num_workers=2, drop_last=True)
-    validation_loader_uv = torch.utils.data.DataLoader(validate_dataset_uv, batch_size=10, shuffle=False, num_workers=2, drop_last=True)
+    training_loader_uv = torch.utils.data.DataLoader(train_dataset_uv, batch_size=10, shuffle=False, num_workers=1, drop_last=True)
+    validation_loader_uv = torch.utils.data.DataLoader(validate_dataset_uv, batch_size=10, shuffle=False, num_workers=1, drop_last=True)
 
-    training_loader_z = torch.utils.data.DataLoader(train_dataset_z, batch_size=5, shuffle=False, num_workers=2, drop_last=True)
-    validation_loader_z = torch.utils.data.DataLoader(validate_dataset_z, batch_size=5, shuffle=False, num_workers=2, drop_last=True)
+    training_loader_z = torch.utils.data.DataLoader(train_dataset_z, batch_size=5, shuffle=False, num_workers=1, drop_last=True)
+    validation_loader_z = torch.utils.data.DataLoader(validate_dataset_z, batch_size=5, shuffle=False, num_workers=1, drop_last=True)
 
-    meta_training_loader = torch.utils.data.DataLoader(train_dataset_meta, batch_size=10, shuffle=False, num_workers=2, drop_last=True)
-    meta_validation_loader = torch.utils.data.DataLoader(validate_dataset_meta, batch_size=10, shuffle=False, num_workers=2, drop_last=True)
+    meta_training_loader = torch.utils.data.DataLoader(train_dataset_meta, batch_size=10, shuffle=False, num_workers=1, drop_last=True)
+    meta_validation_loader = torch.utils.data.DataLoader(validate_dataset_meta, batch_size=10, shuffle=False, num_workers=1, drop_last=True)
 
     train_single_models(training_loader_uv, validation_loader_uv, training_loader_z, validation_loader_z, meta_training_loader,
         meta_validation_loader, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
