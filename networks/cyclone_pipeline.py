@@ -5,6 +5,7 @@ from datetime import datetime
 from models.uv_model import UV_Model
 from models.z_model import Z_Model
 from models.meta_model import Meta_Model
+from models.fused_model import Fusion_Model
 import os
 import datetime
 import xarray
@@ -98,22 +99,22 @@ def train_single_models(train_dataloader_uv, val_dataloader_uv, train_dataloader
 
     model_uv = UV_Model()
 
-    # if 'model_uv' in os.listdir(models_dir):
-    #     model_uv.load_state_dict(torch.load(f'{models_dir}/model_uv'))
+    if 'model_uv' in os.listdir(models_dir):
+        model_uv.load_state_dict(torch.load(f'{models_dir}/model_uv'))
     
     print("Model UV loaded")
     
     model_z = Z_Model()
 
-    # if 'model_z' in os.listdir(models_dir):
-    #     model_z.load_state_dict(torch.load(f'{models_dir}/model_z'))
+    if 'model_z' in os.listdir(models_dir):
+        model_z.load_state_dict(torch.load(f'{models_dir}/model_z'))
     
     print("Model z loaded")
 
     model_meta = Meta_Model()
 
-    # if 'model_z' in os.listdir(models_dir):
-    #     model_meta.load_state_dict(torch.load(f'{models_dir}/model_meta'))
+    if 'model_z' in os.listdir(models_dir):
+        model_meta.load_state_dict(torch.load(f'{models_dir}/model_meta'))
     
     print("Model meta loaded")
 
@@ -121,13 +122,54 @@ def train_single_models(train_dataloader_uv, val_dataloader_uv, train_dataloader
     # in order to accomodate the differences needed for different networks.
 
     optimizer = torch.optim.Adam(model_uv.parameters(), lr=learning_rate, betas=betas, eps=1e-8,
-                           weight_decay=weight_decay)
+                           weight_decay=weight_decay) # Need to improve... model_uv not it!
 
     EPOCHS = 2
 
     train_component(model_uv, train_dataloader_uv, val_dataloader_uv, loss_fn, optimizer, "model_uv", EPOCHS)
     train_component(model_z, train_dataloader_z, val_dataloader_z, loss_fn, optimizer, "model_z", EPOCHS)
     train_component(model_meta, train_dataloader_meta, val_dataloader_meta, loss_fn, optimizer, "model_meta", EPOCHS)
+
+def train_fusion_model(train_data_loader_atm, val_data_loader_atm, train_data_loader_meta, val_data_loader_meta,
+    learning_rate, betas, eps, weight_decay, reimport=False):
+    
+    model_fusion = Fusion_Model
+
+    if os.listdir(models_dir).contains('model_fusion') and not reimport:
+        model_fusion.load_state_dict(torch.load(f'{models_dir}/model_fusion'))
+    else:
+        print("-------- Loading models --------")
+
+        model_uv = UV_Model()
+
+        if 'model_uv' in os.listdir(models_dir):
+            model_uv.load_state_dict(torch.load(f'{models_dir}/model_uv'))
+        
+        print("Model UV loaded")
+        
+        model_z = Z_Model()
+
+        if 'model_z' in os.listdir(models_dir):
+            model_z.load_state_dict(torch.load(f'{models_dir}/model_z'))
+        
+        print("Model z loaded")
+
+        model_meta = Meta_Model()
+
+        if 'model_z' in os.listdir(models_dir):
+            model_meta.load_state_dict(torch.load(f'{models_dir}/model_meta'))
+        
+        print("Model meta loaded")
+
+        pretrained_dict_uv = model_uv.state_dict()
+        pretrained_dict_z = model_z.state_dict()
+        pretrained_dict_meta = model_meta.state_dict()
+        model_fusion_dict = model_fusion.state_dict()
+
+        # Need to write out all imports here...
+
+    
+
 
 if __name__ == '__main__':
     splits = {'train':0.7, 'validate':0.1, 'test':0.2}
