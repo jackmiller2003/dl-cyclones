@@ -6,6 +6,7 @@ import csv
 from utilities import *
 from tqdm import tqdm
 import numpy as np
+import xarray
 
 with open('proc_tracks.json', 'r+') as pt:
     cyclone_dict = json.load(pt)
@@ -107,16 +108,26 @@ def all_avaliable_tracks(tracks_file='proc_tracks.json', data_local='/g/data/x77
     
     cyclones_saved = os.listdir(data_local)
     
-    print(cyclones_saved)
-    
-    for sid in cyclones_saved:
+    for sid in tqdm(cyclones_saved[1401:]):
+        if sid == 'old':
+            continue
+        ds = xarray.open_mfdataset(data_local+"/"+sid, engine='netcdf4')
+        cyclone_array = ds.to_array()
+        if np.isnan(cyclone_array.to_numpy()).any():
+            print(f"Has nan: {sid}")
+            continue
         if sid[:-3] in tracks_dict:
             previous_month = np.datetime64(tracks_dict[sid[:-3]]['iso_times'][0]).astype(object).month
             for iso_time in tracks_dict[sid[:-3]]['iso_times']:
                 current_month = (np.datetime64(iso_time)).astype(object).month
+                current_minute = (np.datetime64(iso_time)).astype(object).minute
                 if current_month != previous_month:
                     break
                 previous_month = (np.datetime64(iso_time)).astype(object).month
+
+                if current_minute != 0:
+                    print(f"Has wrong time {sid}")
+                    break
             else:
                 data = {sid:tracks_dict[sid[:-3]]}
                 append_to_json('available.json', data)

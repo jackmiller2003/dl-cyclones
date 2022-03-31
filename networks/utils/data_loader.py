@@ -45,12 +45,11 @@ class CycloneDataset(Dataset):
                     
                     cyclone_ds = xarray.open_dataset(self.cyclone_dir+cyclone)
                     cyclone_ds_crop = cyclone_ds.to_array().to_numpy()
-                    cyclone_ds_crop = np.transpose(cyclone_ds_crop, (1, 0, 2, 3,4))
-                    print(f"Cyclone {cyclone} with {np.shape(cyclone_ds_crop)}")
-                    # print(f"Original crop {str(np.shape(cyclone_ds_crop))}")
-                    # print(f"Time crop {j-self.time_step_back-1} and {j}")
+                    cyclone_ds_crop = np.transpose(cyclone_ds_crop, (1, 0, 2, 3, 4))
+
+                    # print(f"Cyclone {cyclone} with {np.shape(cyclone_ds_crop)} and time crop {j-self.time_step_back-1} and {j}")
+
                     cyclone_array = cyclone_ds_crop[j-self.time_step_back-1:j,self.target_parameters,:,:,:]
-                    # print(f"Cyclone array {np.shape(cyclone_array)}")
                     example = torch.from_numpy(cyclone_array)
                     num_channels = int(5*len(self.target_parameters)*(1+self.time_step_back))
 
@@ -59,8 +58,17 @@ class CycloneDataset(Dataset):
                         
                     
                     example = torch.reshape(example, (num_channels,160,160))
-                    label = torch.from_numpy(np.array([float(data['coordinates'][j][0]), float(data['coordinates'][j][1]), float(data['categories'][j])]))
+                    label = torch.from_numpy(np.array([[
+                                                float(data['coordinates'][j-1][0]), float(data['coordinates'][j][0])], 
+                                                [float(data['coordinates'][j-1][1]), float(data['coordinates'][j][1])],
+                                                [float(data['categories'][j-1]), float(data['categories'][j])]
+                                                        ]))
                     
+                    if torch.isnan(example).any():
+                        print(f"Example size is: {example.size()}")
+                        print(f"Cyclone: {cyclone}")
+                        print(f"Coordinate: {coordinate}")
+
                     return example, label
 
                 i += 1
@@ -104,11 +112,11 @@ class MetaDataset(Dataset):
                         float(data['coordinates'][j-1][1])
                     ]))
 
-                    label = torch.from_numpy(np.array([
-                        float(data['coordinates'][j][0]),
-                        float(data['coordinates'][j][1]),
-                        float(data['categories'][j])
-                    ]))
+                    label = torch.from_numpy(np.array([[
+                                                float(data['coordinates'][j-1][0]), float(data['coordinates'][j][0])], 
+                                                [float(data['coordinates'][j-1][1]), float(data['coordinates'][j][1])],
+                                                [float(data['categories'][j-1]), float(data['categories'][j])]
+                                                        ]))
 
                     return example, label
 

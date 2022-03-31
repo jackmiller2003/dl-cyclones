@@ -8,6 +8,7 @@ from models.meta_model import Meta_Model
 import os
 import datetime
 import xarray
+import matplotlib.pyplot as plt
 
 data_dir = '/g/data/x77/ob2720/cyclone_binaries/'
 models_dir = '/g/data/x77/jm0124/models'
@@ -17,12 +18,19 @@ def train_single_models_epoch(model, epoch, train_dataloader, loss_func, optimiz
     running_loss = 0
     last_loss = 0
 
-    for i, (example, truth) in enumerate(train_dataloader):
+    torch.autograd.set_detect_anomaly(True)
+
+    mean_loss = []
+
+    for i, (example, target) in enumerate(train_dataloader):
+
         optimizer.zero_grad()
+
+        print(f"Example contains nan {torch.isnan(example).any()}")
 
         output = model(example)
 
-        loss = loss_func(output, truth)
+        loss = loss_func(output, target)
         loss.backward()
 
         optimizer.step()
@@ -31,12 +39,17 @@ def train_single_models_epoch(model, epoch, train_dataloader, loss_func, optimiz
 
         if i % 10 == 9:
             last_loss = running_loss / 10 # loss per batch
-            print('  batch {} loss: {}'.format(i + 1, last_loss))
-            # tb_x = epoch * len(training_loader) + i + 1
-            # tb_writer.add_scalar('Loss/train', last_loss, tb_x)
+            mean_loss.append(last_loss)
+            print('batch {} loss: {}'.format(i + 1, last_loss))
             running_loss = 0
         
+        if i == 31:
+            break
+        
     print("Reached end of train single models")
+
+    plt.plot([10,20,30], mean_loss)
+    plt.savefig('Mean-loss.png')
     
     return last_loss
 
@@ -61,6 +74,9 @@ def train_component(model, train_dataloader, val_dataloader, loss_fn, optimizer,
             voutputs = model(vinputs)
             vloss = loss_fn(voutputs, vlabels)
             running_vloss += vloss
+
+            if i == 30:
+                break
         
         avg_vloss = running_vloss / (i+1)
 
@@ -110,21 +126,21 @@ def train_single_models(train_dataloader_uv, val_dataloader_uv, train_dataloader
     EPOCHS = 2
 
     train_component(model_uv, train_dataloader_uv, val_dataloader_uv, loss_fn, optimizer, "model_uv", EPOCHS)
-    # train_component(model_z, train_dataloader_z, val_dataloader_z, loss_fn, optimizer, "model_z", EPOCHS)
-    # train_component(model_meta, train_dataloader_meta, val_dataloader_meta, loss_fn, optimizer, "model_meta", EPOCHS)
+    train_component(model_z, train_dataloader_z, val_dataloader_z, loss_fn, optimizer, "model_z", EPOCHS)
+    train_component(model_meta, train_dataloader_meta, val_dataloader_meta, loss_fn, optimizer, "model_meta", EPOCHS)
 
 if __name__ == '__main__':
     splits = {'train':0.7, 'validate':0.1, 'test':0.2}
     train_dataset_uv, validate_dataset_uv, test_dataset_uv, train_dataset_z, validate_dataset_z, test_dataset_z, train_dataset_meta, validate_dataset_meta, test_dataset_meta = load_datasets(splits)
 
-    training_loader_uv = torch.utils.data.DataLoader(train_dataset_uv, batch_size=10, shuffle=False, num_workers=1, drop_last=True)
-    validation_loader_uv = torch.utils.data.DataLoader(validate_dataset_uv, batch_size=10, shuffle=False, num_workers=1, drop_last=True)
+    training_loader_uv = torch.utils.data.DataLoader(train_dataset_uv, batch_size=2, shuffle=False, num_workers=4, drop_last=True)
+    validation_loader_uv = torch.utils.data.DataLoader(validate_dataset_uv, batch_size=2, shuffle=False, num_workers=4, drop_last=True)
 
-    training_loader_z = torch.utils.data.DataLoader(train_dataset_z, batch_size=5, shuffle=False, num_workers=1, drop_last=True)
-    validation_loader_z = torch.utils.data.DataLoader(validate_dataset_z, batch_size=5, shuffle=False, num_workers=1, drop_last=True)
+    training_loader_z = torch.utils.data.DataLoader(train_dataset_z, batch_size=2, shuffle=False, num_workers=4, drop_last=True)
+    validation_loader_z = torch.utils.data.DataLoader(validate_dataset_z, batch_size=2, shuffle=False, num_workers=4, drop_last=True)
 
-    meta_training_loader = torch.utils.data.DataLoader(train_dataset_meta, batch_size=10, shuffle=False, num_workers=1, drop_last=True)
-    meta_validation_loader = torch.utils.data.DataLoader(validate_dataset_meta, batch_size=10, shuffle=False, num_workers=1, drop_last=True)
+    meta_training_loader = torch.utils.data.DataLoader(train_dataset_meta, batch_size=2, shuffle=False, num_workers=4, drop_last=True)
+    meta_validation_loader = torch.utils.data.DataLoader(validate_dataset_meta, batch_size=2, shuffle=False, num_workers=4, drop_last=True)
 
     train_single_models(training_loader_uv, validation_loader_uv, training_loader_z, validation_loader_z, meta_training_loader,
         meta_validation_loader, 1e-3, (0.9, 0.999), 1e-8, 1e-4)

@@ -28,3 +28,10 @@ Considering what pressures to include we reason:
 
 * Pressures for u and v could be 200,250,450,650,850 since these cover SHR, SHR^2 and U200.
 * Should pressures for z be the same? I think so if we are considering our data like an image. I'm also guessing that they are using potential vorticity hence the geopotential height. Hence 200,250,450,650,850 for z.
+
+### Current TODO
+
+We need to:
+* Fix up data collection for cyclones across months
+* Redo JSON entries so that they don't include 3h * t because data collection only does 3h time steps (as it should!)
+* Cyclones with NaN values from ERA5

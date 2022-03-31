@@ -7,59 +7,47 @@ import math
 # Please see https://github.com/sophiegif/FusionCNN_hurricanes
 class Fusion_Model(nn.Module):
     
-    def __init__(dropout = 0.5, time_step_back = 1, num_params = 2, num_levels = 5):
-        super(Net_2d_conv3_fuse_3fc, self).__init__()
-        self.in_channels = num_params * num_levels * (time_step_back+1)
+    def __init__(time_steps_back=1, pressure_levels=5):
+        super(Fusion_Model, self).__init__()
+        self.in_channels = 2*(time_steps_back+1)*pressure_levels
 
-        self.conv1_uv = nn.Conv2d(in_channels=self.in_channels, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
+        self.conv1_uv = nn.Conv2d(in_channels=self.in_channels, out_channels=64, kernel_size=3, stride=2, padding=0, groups=1, bias=True)
         self.conv1_bn_uv = nn.BatchNorm2d(64)
-
-        self.conv1_z = nn.Conv2d(in_channels=10, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
-        self.conv1_bn_z = nn.BatchNorm2d(64)
-
-
         self.conv2_uv = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
         self.conv2_bn_uv = nn.BatchNorm2d(64)
-
-        self.conv2_z = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
-        self.conv2_bn_z = nn.BatchNorm2d(64)
-
-
-        self.conv3_uv = nn.Conv2d(in_channels=64, out_channels=256, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
-        self.conv3_bn_uv = nn.BatchNorm2d(256)
-
-        self.conv3_z = nn.Conv2d(in_channels=64, out_channels=256, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
-        self.conv3_bn_z = nn.BatchNorm2d(256)
-
-
-        self.fc1_uv =  nn.Linear(in_features=256*4*4, out_features=576)
+        self.conv3_uv = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
+        self.conv3_bn_uv = nn.BatchNorm2d(64)
+        self.fc1_uv = nn.Linear(in_features=64*18*18, out_features=576)
         self.fc1_bn_uv = nn.BatchNorm1d(576)
-        self.fc1_z =  nn.Linear(in_features=256*4*4, out_features=576)
-        self.fc1_bn_z = nn.BatchNorm1d(576)
-
-
         self.fc2_uv = nn.Linear(in_features=576, out_features=128)
         self.fc2_bn_uv = nn.BatchNorm1d(128)
-        self.fc2_z = nn.Linear(in_features=576, out_features=128)
-        self.fc2_bn_z = nn.BatchNorm1d(128)
-
-
         self.fc3_uv = nn.Linear(in_features=128, out_features=64)
         self.fc3_bn_uv = nn.BatchNorm1d(64)
+        self.fc4_uv = nn.Linear(in_features=64, out_features=8)
+
+        self.conv1_z = nn.Conv2d(in_channels=self.in_channels, out_channels=64, kernel_size=3, stride=2, padding=0, groups=1, bias=True)
+        self.conv1_bn_z = nn.BatchNorm2d(64)
+        self.conv2_z = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
+        self.conv2_bn_z = nn.BatchNorm2d(64)
+        self.conv3_z = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
+        self.conv3_bn_z = nn.BatchNorm2d(64)
+
+        self.fc1_z = nn.Linear(in_features=64*18*18, out_features=576)
+        self.fc1_bn_z = nn.BatchNorm1d(576)
+        self.fc2_z = nn.Linear(in_features=576, out_features=128)
+        self.fc2_bn_z = nn.BatchNorm1d(128)
         self.fc3_z = nn.Linear(in_features=128, out_features=64)
         self.fc3_bn_z = nn.BatchNorm1d(64)
-
-
-        self.fc4_uv = nn.Linear(in_features=64, out_features=8)
-        self.fc4_bn_uv = nn.BatchNorm1d(8)
         self.fc4_z = nn.Linear(in_features=64, out_features=8)
-        self.fc4_bn_z = nn.BatchNorm1d(8)
 
+        self.meta_in_channels = time_step_back * 3
+        self.fc1_meta = nn.Linear(in_features=meta_in_channels, out_features=5)
+        self.fc2_meta = nn.Linear(in_features=5, out_features=5)
 
-        self.fc5 = nn.Linear(in_features=8+8+9, out_features=8*3)
-        #self.fc5_bn = nn.BatchNorm1d(8)
-        self.fc6 = nn.Linear(in_features=8*3, out_features=2*3)
-        self.fc7 = nn.Linear(in_features=2*3, out_features=2)
+        self.fc5 = nn.Linear(in_features=8+8+5, out_features=8*2+5)
+        self.fc6 = nn.Linear(in_features=8*2+5, out_features=9)
+        self.fc7 = nn.Linear(in_features=9, out_features=3)
+
         self.init_weights()
 
     def init_weights(self):
@@ -83,9 +71,9 @@ class Fusion_Model(nn.Module):
                 nn.init.xavier_normal_(m.weight, gain=math.sqrt(2))
                 nn.init.normal_(m.bias,mean=0, std=1)
     
-    def forward(self,x,h):
-        x1 = x[:,[0,1,3,4,6,7],:,:,:]
-        x2 = x[:,[2,5,8],:,:,:]
+    def forward(self,example,meta_example):
+        x1 = example[:,[0,1],:,:,:]
+        x2 = x[:,[2],:,:,:]
         
         if self.adjust_dim:
             x1 = x1.view(x1.shape[0],x1.shape[1]*x1.shape[2], x1.shape[3], x1.shape[4])
@@ -97,14 +85,14 @@ class Fusion_Model(nn.Module):
         x1 = F.max_pool2d(x1, kernel_size=2, stride=2, padding=0)
         x1 = F.relu(self.conv3_bn_uv(self.conv3_uv(x1)))
         x1 = F.max_pool2d(x1, kernel_size=2, stride=2, padding=0)
-        x1 = x1.view(-1, 256*4*4)
+        x1 = x1.view(-1, 64*18*18)
 
         x2 = F.relu(self.conv1_bn_z(self.conv1_z(x2)))
         x2 = F.relu(self.conv2_bn_z(self.conv2_z(x2)))
         x2 = F.max_pool2d(x2, kernel_size=2, stride=2, padding=0)
         x2 = F.relu(self.conv3_bn_z(self.conv3_z(x2)))
         x2 = F.max_pool2d(x2, kernel_size=2, stride=2, padding=0)
-        x2 = x2.view(-1, 256*4*4)
+        x2 = x2.view(-1, 64*18*18)
 
         x1 = F.relu(self.fc1_bn_uv(self.fc1_uv(x1)))
         x1 = F.relu(self.fc2_bn_uv(self.fc2_uv(x1)))
@@ -116,7 +104,10 @@ class Fusion_Model(nn.Module):
         x2 = F.relu(self.fc3_bn_z(self.fc3_z(x2)))
         x2 = F.relu(self.fc4_bn_z(self.fc4_z(x2)))
 
-        x = torch.cat((x1,x2, h), dim=1)
+        x3 = F.relu(self.fc1_meta(meta_example.float()))
+        x3 = self.fc2_meta(x)
+
+        x = torch.cat((x1,x2, x3), dim=1)
 
         x = F.relu(self.fc5(x))
         x = self.fc6(x)
