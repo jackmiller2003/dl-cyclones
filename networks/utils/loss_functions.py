@@ -43,7 +43,7 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
 
         a = torch.pow(torch.sin(delta_phi/2),2) + torch.cos(phi0) * torch.cos(phi1) * torch.pow(torch.sin(delta_lambda/2),2) 
         a = a.float() + 1e-6
-        print(f"a: {a}")
+        # print(f"a: {a}")
         c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1-a))
         c = c.double()
         
@@ -57,8 +57,8 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
         
         loss_out = mean_dist_loss #+ mean_intensity_loss
         
-        print(f"Loss is {loss_out}")
-        print(f"c is {c}")
+        # print(f"Loss is {loss_out}")
+        # print(f"c is {c}")
 
         return loss_out
 

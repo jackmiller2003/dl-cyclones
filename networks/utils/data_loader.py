@@ -12,6 +12,20 @@ tracks_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__fil
 with open(tracks_path, 'r') as ptj:
     tracks_dict = json.load(ptj)
 
+# Taken from https://discuss.pytorch.org/t/train-simultaneously-on-two-datasets/649
+class ConcatDataset(torch.utils.data.Dataset):
+    def __init__(self, *datasets):
+        self.datasets = datasets
+
+    def __getitem__(self, i):
+        return_list = []
+        for dataset in self.datasets:
+            return_list.append(dataset[i])
+        return return_list
+
+    def __len__(self):
+        return min(len(d) for d in self.datasets)
+
 class CycloneDataset(Dataset):
     """
     Custom dataset for cyclones.
@@ -50,6 +64,7 @@ class CycloneDataset(Dataset):
                     # print(f"Cyclone {cyclone} with {np.shape(cyclone_ds_crop)} and time crop {j-self.time_step_back-1} and {j}")
 
                     cyclone_array = cyclone_ds_crop[j-self.time_step_back-1:j,self.target_parameters,:,:,:]
+                    # print(f"F1A: {cyclone_array[:,:,:,0,0]}")
                     example = torch.from_numpy(cyclone_array)
                     num_channels = int(5*len(self.target_parameters)*(1+self.time_step_back))
 
@@ -58,6 +73,7 @@ class CycloneDataset(Dataset):
                         
                     
                     example = torch.reshape(example, (num_channels,160,160))
+                    # print(f"F1B: {example[:,0,0]}")
                     label = torch.from_numpy(np.array([[
                                                 float(data['coordinates'][j-1][0]), float(data['coordinates'][j][0])], 
                                                 [float(data['coordinates'][j-1][1]), float(data['coordinates'][j][1])],
@@ -147,19 +163,14 @@ def load_datasets(splits: dict):
     train_dataset_meta, validate_dataset_meta, test_dataset_meta = torch.utils.data.random_split(full_dataset_meta, 
         [train_length, val_length, test_length])
 
-    return train_dataset_uv, validate_dataset_uv, test_dataset_uv, train_dataset_z, validate_dataset_z, test_dataset_z, train_dataset_meta, validate_dataset_meta, test_dataset_meta
+    full_dataset_uvz = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/cyclone_binaries/', target_parameters=[0,1,2])
+    full_concat_ds = ConcatDataset(full_dataset_uvz, full_dataset_meta)
 
-# def load_meta_datasets(splits: dict):
-#     meta_dataset = MetaDataset()
-#     meta_length = len(meta_dataset)
-#     train_length = int(splits['train']*full_length)
-#     val_length = int(splits['validate']*full_length)
-#     test_length = full_length - train_length - val_length
+    train_concat_ds, validate_concat_ds, test_concat_ds= torch.utils.data.random_split(full_concat_ds, 
+    [train_length, val_length, test_length])
 
-#     train_dataset, validate_dataset, test_dataset = torch.utils.data.random_split(meta_dataset, 
-#         [train_length, val_length, test_length])
-    
-#     return train_dataset, validate_dataset, test_dataset
+    return train_dataset_uv, validate_dataset_uv, test_dataset_uv, train_dataset_z, validate_dataset_z, test_dataset_z, train_dataset_meta, validate_dataset_meta, \
+            test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds
 
 def get_first_example():
     # Display image and label.

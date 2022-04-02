@@ -8,8 +8,6 @@ class Z_Model(nn.Module):
         super(Z_Model, self).__init__()
 
         self.in_channels = (time_steps_back+1)*pressure_levels
-        
-        print(self.in_channels)
 
         self.conv1 = nn.Conv2d(in_channels=self.in_channels, out_channels=64, kernel_size=3, stride=2, padding=0, groups=1, bias=True)
         self.conv1_bn = nn.BatchNorm2d(64)
