@@ -37,6 +37,13 @@ def create_netcdf_file_for_track(ssid) -> None:
     #p = pyinstrument.Profiler()
 
     times = track["iso_times"]
+
+    # MONTH ISSUE FIX: skip over netcdf files that worked
+    # REMOVE WHEN PROCESSING IS COMPLETE
+    first_month = np.datetime64(times[0]).item().month
+    last_month = np.datetime64(times[-1]).item().month
+    if first_month == last_month: return
+
     coords = [(lat, long) for [long, lat] in track['coordinates']]
     levels = [225,500,650,750,850]   # In the tropical cyclone forecasting fusion networks paper they use 700, 500, 225
 
