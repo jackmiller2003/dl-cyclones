@@ -23,7 +23,9 @@ with open('../tracks/proc_tracks.json', 'r') as f:
 def get_user_path() -> str:
     # A path that looks like '/g/data/x77/ob2720'
     # We get the username as the first argument, eg `python3 process_tracks.py $(whoami)`
-    user = sys.argv[1]
+    # user = sys.argv[1]
+    # edit: all binaries are stored in Oliver's drive
+    user = 'ob2720'
     return f'/g/data/x77/{user}'
 
 def create_netcdf_file_for_track(ssid) -> None:

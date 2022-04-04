@@ -85,6 +85,7 @@ def track_single_set_to_xarray(times: List[datetime],
                 ds = _ds
                 start_time = _start_time
                 filename = _filename
+                break
         # try to get the window around the coordinate
         try:
             res.append(sample_window(ds.sel(time=time), degree_window, lat, long))
