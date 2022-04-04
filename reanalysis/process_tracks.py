@@ -1,3 +1,9 @@
+
+"""
+This will process tracks 0 to -1 (ie all of them):
+$ python3 process_tracks.py $(whoami) 0 -1
+"""
+
 import dask
 import dask.bag as db
 from dask.distributed import Client
@@ -50,12 +56,15 @@ if __name__ == '__main__':
     #n_workers = len(client.scheduler_info()["workers"])
     s_time = time.perf_counter()
 
-    track_ids = list(tracks.keys())[0:1]
-    # TODO: this should have try/except and run multiple concurrently
-    #    dask.compute(*[dask.delayed
-    # for ssid in track_ids:
-    #     create_netcdf_file_for_track(ssid)
-    create_netcdf_file_for_track("1979238N12324")
+    start = 0 if len(sys.argv) < 4 else int(sys.argv[2])
+    end = -1 if len(sys.argv) < 4 else int(sys.argv[3])
+    track_ids = list(tracks.keys())[start:end]
+    for ssid in track_ids:
+        try:
+            create_netcdf_file_for_track(ssid)
+        except Exception as e:
+            traceback.print_exc()
+            print(f"Failed to process {ssid}")
 
     e_time = time.perf_counter()
     print(f"Finished processing {len(track_ids)} cyclones in {e_time-s_time:.2f} seconds")
