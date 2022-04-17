@@ -8,12 +8,20 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
     def __init__(self):
         super(L2_Dist_Func_Intensity, self).__init__()
     
-    def forward(self, output_tensor:torch.Tensor, target_tensor: torch.Tensor, intensity_func=scaled_linear_func, intensity_scale=1e-2):
+    def forward(self, output_tensor:torch.Tensor, target_tensor: torch.Tensor, rank, intensity_func=scaled_linear_func, intensity_scale=1e-2):
         """
         Here we have two inputs:
             * Predicted location -> (lon disp., lat disp., change in intensity)
             * Target location -> (lon (t-1, t), lat (t-1, t), intensity (t-1,t))
         """
+        
+        print(f'cuda:{rank}')
+        
+        output_tensor = output_tensor.to(rank)
+        target_tensor = target_tensor.to(rank)
+        
+        print(f"Output tensor is on {output_tensor.get_device()}")
+        print(f"Target tensor is on {target_tensor.get_device()}")
 
         # print(f"Target tensor: {target_tensor.size()}")
         # print(f"Output tensor: {output_tensor.size()}")
