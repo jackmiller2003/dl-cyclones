@@ -11,7 +11,7 @@ def get_cyclone_distance_error(output_tensor:torch.Tensor, target_tensor: torch.
     print(f"Pred lcoal: {(pred_location[0])}")
     print(f"True local: {target_tensor[:,0:2,1][0]}")
 
-    R = 6371e3
+    R = 6371
 
     lon0, lat0 = true_location[0], true_location[1]
     lon1,lat1 = pred_location[0], pred_location[1]

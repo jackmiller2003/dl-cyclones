@@ -9,7 +9,7 @@ class Meta_Model(nn.Module):
         super(Meta_Model, self).__init__()
 
         # We wish to include basin, sub_basin, pressures, lat, lon, category, season
-        in_channels = time_step_back * 3
+        in_channels = time_step_back * 3 + 9
         self.fc1 = nn.Linear(in_features=in_channels, out_features=5)
         self.fc2 = nn.Linear(in_features=5, out_features=3)
 

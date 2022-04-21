@@ -108,7 +108,7 @@ def all_avaliable_tracks(tracks_file='proc_tracks.json', data_local='/g/data/x77
     
     cyclones_saved = os.listdir(data_local)
     
-    for sid in tqdm(cyclones_saved[1401:]):
+    for sid in tqdm(cyclones_saved):
         if sid == 'old':
             continue
         ds = xarray.open_mfdataset(data_local+"/"+sid, engine='netcdf4')
@@ -121,19 +121,38 @@ def all_avaliable_tracks(tracks_file='proc_tracks.json', data_local='/g/data/x77
             for iso_time in tracks_dict[sid[:-3]]['iso_times']:
                 current_month = (np.datetime64(iso_time)).astype(object).month
                 current_minute = (np.datetime64(iso_time)).astype(object).minute
-                if current_month != previous_month:
-                    break
                 previous_month = (np.datetime64(iso_time)).astype(object).month
 
                 if current_minute != 0:
-                    print(f"Has wrong time {sid}")
+                    # print(f"Has wrong time {sid}")
                     break
             else:
                 data = {sid:tracks_dict[sid[:-3]]}
-                append_to_json('available.json', data)
+                append_to_json('available.json', data)    
+
+def get_generate_sub_one_hot():
+    with open('proc_tracks.json', 'r') as tracks_json:
+        tracks_dict = json.load(tracks_json)
     
+    one_hot_dict = {}
+
+    i = 0
     
+    for sid, data in tqdm(tracks_dict.items()):
+        for sub_basin in data["subbasin"]:
+            found_basin = False
+            for dict_sub, num in one_hot_dict.items():
+                if sub_basin == dict_sub:
+                    found_basin = True
+            if not found_basin:
+                one_hot_dict[sub_basin] = i
+                i += 1
+    
+    print(one_hot_dict)
+
+    with open('one_hot_dict.json', 'w') as one_hot_json:
+        tracks_dict = json.dump(one_hot_dict, one_hot_json)
 
 if __name__ == '__main__':
     # save_all_storms('ibtracs.ALL.list.v04r00.csv', save_to_file="tracks.json", year_init=1979)
-    all_avaliable_tracks()
+    get_generate_sub_one_hot()

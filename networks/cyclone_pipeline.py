@@ -14,6 +14,7 @@ from utils.util_funcs import *
 from tqdm import tqdm
 from collections import OrderedDict
 import re
+import pickle
 
 data_dir = '/g/data/x77/ob2720/cyclone_binaries/'
 models_dir = '/g/data/x77/jm0124/models'
@@ -23,129 +24,101 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.multiprocessing as mp
 
-
-
 def setup(rank, world_size):
     os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12354'
+    os.environ['MASTER_PORT'] = '12352'
 
     # initialize the process group
-    dist.init_process_group("gloo", rank=rank, world_size=world_size)
-    
-def prepare(rank, world_size, batch_size=256, pin_memory=True, num_workers=4):
-    dataset = Your_Dataset()
-    sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=False, drop_last=False)
-    
-    dataloader = DataLoader(dataset, batch_size=batch_size, pin_memory=pin_memory, num_workers=num_workers, drop_last=False, shuffle=False, sampler=sampler)
-    
-    return dataloader
+    dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
 def cleanup():
     dist.destroy_process_group()
 
-def train_single_models_epoch(model, epoch, train_dataloader, loss_func, optimizer, model_name):
-    
-    running_loss = 0
-    last_loss = 0
-
-    torch.autograd.set_detect_anomaly(True)
-
-    mean_loss = []
-    
-    parallel_net = torch.nn.DataParallel(model, device_ids = [0,1])
-    parallel_net = parallel_net.to(0)
-
-    for i, (example, target) in enumerate(train_dataloader):
-
-        example = example.to(0)
-        
-        optimizer.zero_grad()
-
-        # print(f"Example contains nan {torch.isnan(example).any()}")
-
-        output = parallel_net(example)
-
-        loss = loss_func(output, target)
-        loss.mean().backward()
-
-        optimizer.step()
-
-        running_loss += loss.mean().item()
-
-        if i % 10 == 9:
-            last_loss = running_loss / 10 # loss per batch
-            mean_loss.append(last_loss)
-            print('batch {} loss: {}'.format(i + 1, last_loss))
-            running_loss = 0
-        
-        if i % 20 == 19:
-            break
-        
-    print(f"Reached end of train single models for {model_name}")
-
-    plt.plot(list(range(len(mean_loss))), mean_loss)
-    plt.savefig(f'Mean-loss {model_name}.png')
-    
-    return last_loss
-
-def train_component(model, train_dataloader, val_dataloader, loss_fn, optimizer, model_name, num_epochs):
-    print(f"-------- Training {model_name} model --------")
-
-    best_vloss = 1e10
-    
-    for epoch in range(0,num_epochs):
-        print(f"EPOCH: {epoch}")
-
-        model.train(True)
-        avg_loss = train_single_models_epoch(model, epoch, 
-            train_dataloader, loss_fn, optimizer, model_name)
-
-        parallel_net = torch.nn.DataParallel(model, device_ids = [0,1])
-        parallel_net = parallel_net.to(0)
-        
-        running_vloss = 0
-
-        for i, vdata in tqdm(enumerate(val_dataloader)):
-            vinputs, vlabels = vdata
-            vinputs = vinputs.to(0)
-            voutputs = parallel_net(vinputs)
-            vloss = loss_fn(voutputs, vlabels)
-            running_vloss += vloss.mean().item()
-            
-            if i % 20 == 19:
-                break
-        
-        avg_vloss = running_vloss / (i+1)
-
-        print(f"Loss train for {model_name} {avg_loss} valid {avg_vloss}")
-
-        if avg_vloss < best_vloss:
-            best_vloss = avg_vloss
-            model_path = f'{models_dir}/{model_name}-{str(best_vloss)}'
-            state = {
-                'epoch': epoch,
-                'state_dict': model.state_dict(),
-                'optimizer': optimizer.state_dict()
-            }
-            torch.save(state, model_path)
-
-    print(f"Best vloss for {model_name} was {best_vloss}")
-
-def train_single_models(train_dataset_uv, val_dataset_uv, learning_rate, betas, eps, weight_decay):
+def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_dataset_z, train_dataset_meta, val_dataset_meta, learning_rate, betas, eps, weight_decay):
     
     print("-------- Loading models --------")
 
     model_uv = UV_Model()
-    
-    EPOCHS = 1
+    model_z = Z_Model()
+    model_meta = Meta_Model()
 
-    if 'model_uv-0.0042708070717918205' in os.listdir(models_dir):
-        print("model_uv-0.0042708070717918205")
-        state = torch.load(f'{models_dir}/model_uv-0.0042708070717918205')
+    if True:#'model_uv-0.0038049714482137156' in os.listdir(models_dir):
+        print("model_uv")
+        EPOCHS = 100
+        # state = torch.load(f'{models_dir}/model_uv-0.0038049714482137156')
         
+        
+        # state_dict = state['state_dict']
+        # optimizer_dict = state['optimizer']
+        
+        # model_dict = OrderedDict()
+        # pattern = re.compile('module.')
+        # for k,v in state_dict.items():
+        #     if re.search("module", k):
+        #         model_dict[re.sub(pattern, '', k)] = v
+        #     else:
+        #         model_dict = state_dict
+        # model_uv.load_state_dict(model_dict)
+        
+        optimizer_dict = {}
+
+        optimizer_params = {
+            'learning_rate':1e-3,
+            'betas':betas,
+            'eps':eps,
+            'weight_decay':weight_decay,
+            'optimizer_dict':optimizer_dict
+        }
+        
+        print("Spawned processes")
+        
+        for epoch in range(1,EPOCHS+1):
+        
+            world_size = 2
+            mp.spawn(
+                train,
+                args=(world_size, train_dataset_uv, model_uv, optimizer_params, epoch, "model_uv"),
+                nprocs=world_size
+            )
+            
+            print("Up to here...")
+            
+            state = torch.load(f'{models_dir}/model_uv_scratch')
+            
+            state_dict = state['state_dict']
+            optimizer_dict = state['optimizer']
+
+            model_dict = OrderedDict()
+            pattern = re.compile('module.')
+            for k,v in state_dict.items():
+                if re.search("module", k):
+                    model_dict[re.sub(pattern, '', k)] = v
+                else:
+                    model_dict = state_dict
+            model_uv.load_state_dict(model_dict)
+            
+            optimizer_params = {
+                'learning_rate':1e-3,
+                'betas':betas,
+                'eps':eps,
+                'weight_decay':weight_decay,
+                'optimizer_dict':optimizer_dict
+            }
+
+            mp.spawn(
+                validate,
+                args=(world_size, val_dataset_uv, model_uv, optimizer_params, epoch, "model_uv"),
+                nprocs=world_size
+            )
+
+    if 'model_z-0.004493883401543523' in os.listdir(models_dir):
+        EPOCHS = 16
+        print("model_z-0.004493883401543523")
+        state = torch.load(f'{models_dir}/model_z-0.004493883401543523')
+
         state_dict = state['state_dict']
         optimizer_dict = state['optimizer']
-        
+
         model_dict = OrderedDict()
         pattern = re.compile('module.')
         for k,v in state_dict.items():
@@ -153,86 +126,181 @@ def train_single_models(train_dataset_uv, val_dataset_uv, learning_rate, betas, 
                 model_dict[re.sub(pattern, '', k)] = v
             else:
                 model_dict = state_dict
-        model_uv.load_state_dict(model_dict)
+        model_z.load_state_dict(model_dict)
+
+        optimizer_params = {
+            'learning_rate':1e-5,
+            'betas':betas,
+            'eps':eps,
+            'weight_decay':weight_decay,
+            'optimizer_dict':optimizer_dict
+        }
+
+        print("Spawned processes")
+
+        for epoch in range(1,EPOCHS+1):
+
+            world_size = 2
+            mp.spawn(
+                train,
+                args=(world_size, train_dataset_z, model_z, optimizer_params, epoch, "model_z"),
+                nprocs=world_size
+            )
+            
+            print("Up to here...")
+            
+            state = torch.load(f'{models_dir}/model_z_scratch')
+            
+            state_dict = state['state_dict']
+            optimizer_dict = state['optimizer']
+
+            model_dict = OrderedDict()
+            pattern = re.compile('module.')
+            for k,v in state_dict.items():
+                if re.search("module", k):
+                    model_dict[re.sub(pattern, '', k)] = v
+                else:
+                    model_dict = state_dict
+            model_z.load_state_dict(model_dict)
+
+            # This needs to be changed to not call save because it will call it twice.
+            mp.spawn(
+                validate,
+                args=(world_size, val_dataset_z, model_z, optimizer_params, epoch, "model_z"),
+                nprocs=world_size
+            )
         
-        optimizer = torch.optim.Adam(model_uv.parameters(), lr=learning_rate, betas=betas, eps=1e-8,
-                           weight_decay=weight_decay)
+    if False: #'model_meta-0.004831329930796832' in os.listdir(models_dir):
+        EPOCHS = 16
+        print("model_meta-0.004831329930796832")
+        state = torch.load(f'{models_dir}/model_meta-0.004831329930796832')
+
+        state_dict = state['state_dict']
+        optimizer_dict = state['optimizer']
+
+        model_dict = OrderedDict()
+        pattern = re.compile('module.')
+        for k,v in state_dict.items():
+            if re.search("module", k):
+                model_dict[re.sub(pattern, '', k)] = v
+            else:
+                model_dict = state_dict
+        model_meta.load_state_dict(model_dict)
+
+        optimizer_params = {
+            'learning_rate':1e-5,
+            'betas':betas,
+            'eps':eps,
+            'weight_decay':weight_decay,
+            'optimizer_dict':optimizer_dict
+        }
+
+        print("Spawned processes")
+
+        for epoch in range(1,EPOCHS+1):
+
+            world_size = 2
+            mp.spawn(
+                train,
+                args=(world_size, train_dataset_meta, model_z, optimizer_params, epoch, "model_meta"),
+                nprocs=world_size
+            )
+            
+            print("Up to here...")
+            
+            state = torch.load(f'{models_dir}/model_meta_scratch')
+            
+            state_dict = state['state_dict']
+            optimizer_dict = state['optimizer']
+
+            model_dict = OrderedDict()
+            pattern = re.compile('module.')
+            for k,v in state_dict.items():
+                if re.search("module", k):
+                    model_dict[re.sub(pattern, '', k)] = v
+                else:
+                    model_dict = state_dict
+            model_meta.load_state_dict(model_dict)
+
+            # This needs to be changed to not call save because it will call it twice.
+            mp.spawn(
+                validate,
+                args=(world_size, val_dataset_meta, model_meta, optimizer_params, epoch, "model_meta"),
+                nprocs=world_size
+            )
         
-        optimizer.load_state_dict(optimizer_dict)
-        
-        world_size = 2
-        mp.spawn(
-            train,
-            args=(world_size, train_dataset_uv, model_uv, optimizer, 1),
-            nprocs=world_size
-        )
-                
+            
         return
         
-        
-    # print("Model UV loaded")
-    
-    # model_z = Z_Model()
-
-    # if 'model_z' in os.listdir(models_dir):
-    #     model_z.load_state_dict(torch.load(f'{models_dir}/model_z'))
-    
-    # print("Model z loaded")
-
-    # model_meta = Meta_Model()
-
-    # if 'model_z' in os.listdir(models_dir):
-    #     model_meta.load_state_dict(torch.load(f'{models_dir}/model_meta'))
-    
-    # print("Model meta loaded")
-
-    # Here we are using the same optimizer, but we could simply change the learning rate
-    # in order to accomodate the differences needed for different networks.
-
-#     optimizer = torch.optim.Adam(model_uv.parameters(), lr=learning_rate, betas=betas, eps=1e-8,
-#                            weight_decay=weight_decay)
-
-#     train_component(model_uv, train_dataloader_uv, val_dataloader_uv, loss_fn, optimizer, "model_uv", EPOCHS)
-
-#     optimizer = torch.optim.Adam(model_z.parameters(), lr=learning_rate, betas=betas, eps=1e-8,
-#                         weight_decay=weight_decay)
-    
-#     train_component(model_z, train_dataloader_z, val_dataloader_z, loss_fn, optimizer, "model_z", EPOCHS)
-
-    optimizer = torch.optim.Adam(model_meta.parameters(), lr=learning_rate*0.01, betas=betas, eps=1e-8,
-                        weight_decay=weight_decay)
-
-    train_component(model_meta, train_dataloader_meta, val_dataloader_meta, loss_fn, optimizer, "model_meta", EPOCHS)
 
 def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps, weight_decay, reimport=False):
     
     model_fusion = Fusion_Model()
-    loss_func = torch.nn.DataParallel(L2_Dist_Func_Intensity(), device_ids=[0,1])
-    loss_func.to(0)
 
-    if ('model_fusion' in os.listdir(models_dir)) and not reimport:
+    if ('model_fusion' in os.listdir(models_dir)) and reimport:
         model_fusion.load_state_dict(torch.load(f'{models_dir}/model_fusion'))
     else:
         print("-------- Loading models --------")
 
         model_uv = UV_Model()
 
-        if 'model_uv' in os.listdir(models_dir):
-            model_uv.load_state_dict(torch.load(f'{models_dir}/model_uv'))
+        # Need to specify here the exact models
+        if 'model_uv-0.0038049714482137156' in os.listdir(models_dir):
+
+            state = torch.load(f'{models_dir}/model_uv-0.0038049714482137156')
+
+            state_dict = state['state_dict']
+            optimizer_dict = state['optimizer']
+
+            model_dict = OrderedDict()
+            pattern = re.compile('module.')
+            for k,v in state_dict.items():
+                if re.search("module", k):
+                    model_dict[re.sub(pattern, '', k)] = v
+                else:
+                    model_dict = state_dict
+
+            model_uv.load_state_dict(model_dict)
         
         print("Model UV loaded")
         
         model_z = Z_Model()
 
-        if 'model_z' in os.listdir(models_dir):
-            model_z.load_state_dict(torch.load(f'{models_dir}/model_z'))
+        if 'model_z-0.004493883401543523' in os.listdir(models_dir):
+            state = torch.load(f'{models_dir}/model_z-0.004493883401543523')
+
+            state_dict = state['state_dict']
+            optimizer_dict = state['optimizer']
+
+            model_dict = OrderedDict()
+            pattern = re.compile('module.')
+            for k,v in state_dict.items():
+                if re.search("module", k):
+                    model_dict[re.sub(pattern, '', k)] = v
+                else:
+                    model_dict = state_dict
+                    
+            model_z.load_state_dict(model_dict)
         
         print("Model z loaded")
 
         model_meta = Meta_Model()
 
-        if 'model_z' in os.listdir(models_dir):
-            model_meta.load_state_dict(torch.load(f'{models_dir}/model_meta'))
+        if 'model_meta-0.004493883401543523' in os.listdir(models_dir):
+            state = torch.load(f'{models_dir}/model_meta-0.004493883401543523')
+
+            state_dict = state['state_dict']
+            optimizer_dict = state['optimizer']
+
+            model_dict = OrderedDict()
+            pattern = re.compile('module.')
+            for k,v in state_dict.items():
+                if re.search("module", k):
+                    model_dict[re.sub(pattern, '', k)] = v
+                else:
+                    model_dict = state_dict
+                    
+            model_meta.load_state_dict(model_dict)
         
         print("Model meta loaded")
 
@@ -361,75 +429,70 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
                 param.requires_grad = True
             else:
                 param.requires_grad = False
-        optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model_fusion.parameters()), lr=learning_rate*0.001,
-                            betas=betas, eps=eps, weight_decay=weight_decay)
         
-        running_loss = 0
-        last_loss = 0
+        optimizer_dict = {}
 
-        torch.autograd.set_detect_anomaly(True)
+        optimizer_params = {
+            'learning_rate':1e-3,
+            'betas':betas,
+            'eps':eps,
+            'weight_decay':weight_decay,
+            'optimizer_dict':optimizer_dict
+        }
 
-        mean_loss = []
+        print("Spawned processes")
 
-        for i, return_list in enumerate(train_concat_ds):
+        for epoch in range(1,EPOCHS+1):
 
-            atm_data = return_list[0][0]
-            meta_data = return_list[1][0]
-
-            target = return_list[0][1]
-
-            optimizer.zero_grad()
-
-            # print(f"Example contains nan {torch.isnan(atm_data).any()}")
-
-            output = model_fusion(atm_data, meta_data) # God I hope this works lol
-
-            loss = loss_func(output, target)
-            loss.backward()
-
-            optimizer.step()
-
-            running_loss += loss.item()
-
-            if i % 10 == 9:
-                last_loss = running_loss / 10 # loss per batch
-                mean_loss.append(last_loss)
-                print('batch {} loss: {}'.format(i + 1, last_loss))
-                running_loss = 0
+            world_size = 2
+            mp.spawn(
+                train,
+                args=(world_size, train_concat_ds, model_fusion, optimizer_params, epoch, "model_fusion"),
+                nprocs=world_size
+            )
             
-            if i == 201:
-                break
-        
-        model_path = f'{models_dir}/model_fusion'
-        torch.save(model_fusion.state_dict(), model_path)
+            print("Up to here...")
+            
+            state = torch.load(f'{models_dir}/model_fusion_scratch')
+            
+            state_dict = state['state_dict']
+            optimizer_dict = state['optimizer']
 
-        print("Reached end of fusion training")
+            model_dict = OrderedDict()
+            pattern = re.compile('module.')
+            for k,v in state_dict.items():
+                if re.search("module", k):
+                    model_dict[re.sub(pattern, '', k)] = v
+                else:
+                    model_dict = state_dict
+            model_fusion.load_state_dict(model_dict)
 
-        plt.plot(list(range(len(mean_loss))), mean_loss)
-        plt.savefig('Mean-loss-fusion.png')
-        
-def model_eval(validation_loader_uvzmeta):
-    model_fusion = Fusion_Model()
+            optimizer_params = {
+                'learning_rate':1e-3,
+                'betas':betas,
+                'eps':eps,
+                'weight_decay':weight_decay,
+                'optimizer_dict':optimizer_dict
+            }
 
-    if ('model_fusion' in os.listdir(models_dir)):
-        model_fusion.load_state_dict(torch.load(f'{models_dir}/model_fusion'))
+            # This needs to be changed to not call save because it will call it twice.
+            mp.spawn(
+                validate,
+                args=(world_size, val_concat_ds, model_fusion, optimizer_params, epoch, "model_fusion"),
+                nprocs=world_size
+            )
 
-    mse_list = calculate_average_mse(model_fusion, validation_loader_uvzmeta)
-
-    print(mse_list)
-
-    plt.plot(list(range(len(mse_list))), mse_list)
-    plt.savefig('mse.png')
-
-def prepare(rank, world_size, dataset, batch_size=32, pin_memory=False, num_workers=0):
+def prepare(rank, world_size, dataset, batch_size=64, pin_memory=False, num_workers=8):
     sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=True, drop_last=True)
     
     dataloader = DataLoader(dataset, batch_size=batch_size, pin_memory=pin_memory, num_workers=num_workers, drop_last=True, sampler=sampler)
     
+    print(f"Length of dataloader is {len(dataloader)}")
+    
     return dataloader
 
 
-def train(rank, world_size, dataset, model, optimizer, epoch):
+def train(rank, world_size, dataset, model, optimizer_params, epoch, model_name):
     # setup the process groups
     setup(rank, world_size)
     # prepare the dataloader
@@ -444,63 +507,177 @@ def train(rank, world_size, dataset, model, optimizer, epoch):
     # find_unused_parameters=True instructs DDP to find unused output of the forward() function of any module in the model
     model = DDP(model, device_ids=[rank], output_device=rank)
     
+    learning_rate = optimizer_params["learning_rate"]
+    betas = optimizer_params["betas"]
+    eps = optimizer_params["eps"]
+    weight_decay = optimizer_params["weight_decay"]
+    optimizer_dict = optimizer_params["optimizer_dict"]
+    
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8,
+                        weight_decay=1e-4)
+    
+    # optimizer.load_state_dict(optimizer_dict)
+    
     # if we are using DistributedSampler, we have to tell it which epoch this is
     dataloader.sampler.set_epoch(epoch)
+    
+    loss_fn = L2_Dist_Func_Intensity().to(rank)
 
-    for step, (example, target) in enumerate(dataloader):
-        optimizer.zero_grad(set_to_none=True)
+    with torch.autograd.profiler.profile() as prof:
+    
+        for step, (example, target) in enumerate(dataloader):
+            optimizer.zero_grad(set_to_none=True)
 
-        pred = model(example).to(rank)
-        label = target.to(rank)
-        
-        loss_fn = L2_Dist_Func_Intensity().to(rank)
+            pred = model(example).to(rank)
+            label = target.to(rank)
 
-        loss = loss_fn(pred, label, rank)
-        loss = loss.to(rank)
-        loss.backward()
-        optimizer.step()
+            loss = loss_fn(pred, label, rank)
 
-        if step % 10 == 9:
-            print(f"loss for batch {step} in {epoch}")
+            loss = loss
+
+            loss.backward()
+
+            optimizer.step()
+
+            if step % 10 == 9:
+                print(f"{loss} loss for step {step} in {epoch}")
+    
+    print(prof.key_averages().table(sort_by="self_cpu_time_total"))
+    
+    model_path = f'{models_dir}/{model_name}_scratch'
+    state = {
+        'epoch': epoch,
+        'state_dict': model.state_dict(),
+        'optimizer': optimizer_params["optimizer_dict"]
+    }
+    print("Saved model")
+    torch.save(state, model_path)
+    
     cleanup()
 
-def validate(rank, world_size, dataset, model, optimizer, loss_fn, epoch):
+def validate(rank, world_size, dataset, model, optimizer_params, epoch, model_name):
     setup(rank, world_size)
     # prepare the dataloader
     dataloader = prepare(rank, world_size, dataset)
     
     model = model.to(rank)
     
-    model = DDP(model, device_ids=[rank], output_device=rank, find_unused_parameters=True)
+    model = DDP(model, device_ids=[rank], output_device=rank, find_unused_parameters=False)
     
     # if we are using DistributedSampler, we have to tell it which epoch this is
     dataloader.sampler.set_epoch(epoch)
     
-    for i, vdata in tqdm(enumerate(dataloader)):
+    loss_fn = L2_Dist_Func_Intensity().to(rank)
+    
+    running_vloss = 0
+
+    best_vloss = 1e10
+    
+    for step, vdata in enumerate(dataloader):
         vinputs, vlabels = vdata
-        vinputs = vinputs.to(0)
-        voutputs = parallel_net(vinputs)
-        vloss = loss_fn(voutputs, vlabels)
+        vinputs = vinputs
+        voutputs = model(vinputs).to(rank)
+        vlabels = vlabels.to(rank)
+        vloss = loss_fn(voutputs, vlabels, rank)
         running_vloss += vloss.mean().item()
 
-        if i % 20 == 19:
-            break
+        if step % 10 == 9:
+            print(f"{vloss} loss for step {step} in {epoch}")
+    
+    avg_vloss = running_vloss / (step+1)
 
-    avg_vloss = running_vloss / (i+1)
+    print(f"Loss train for {model_name} valid {avg_vloss}")
 
-    print(f"Loss train for {model_name} {avg_loss} valid {avg_vloss}")
-
-    if avg_vloss < best_vloss:
+    for saved_model in os.listdir(models_dir):
+        if f"{model_name}-" in saved_model:
+            other_vloss = float(saved_model.split(f"{model_name}-",1)[1])
+            if other_vloss < best_vloss:
+                best_vloss = other_vloss
+    
+    print(f"Best vloss is {best_vloss}")
+    
+    if avg_vloss < best_vloss and rank == 0:
         best_vloss = avg_vloss
         model_path = f'{models_dir}/{model_name}-{str(best_vloss)}'
         state = {
             'epoch': epoch,
             'state_dict': model.state_dict(),
-            'optimizer': optimizer.state_dict()
+            'optimizer': optimizer_params["optimizer_dict"]
         }
+        print("Saved model")
         torch.save(state, model_path)
+        
+    cleanup()
+
+def eval(rank, world_size, dataset, model, model_name):
+    setup(rank, world_size)
+    # prepare the dataloader
+    dataloader = prepare(rank, world_size, dataset)
     
+    model = model.to(rank)
     
+    model = DDP(model, device_ids=[rank], output_device=rank, find_unused_parameters=False)
+    
+    # if we are using DistributedSampler, we have to tell it which epoch this is
+    dataloader.sampler.set_epoch(epoch)
+    
+    loss_fn = L2_Dist_Func_Intensity().to(rank)
+    
+    running_tloss = 0
+    
+    for step, vdata in enumerate(dataloader):
+        tinputs, tlabels = vdata
+        toutputs = model(tinputs).to(rank)
+        tlabels = tlabels.to(rank)
+        tloss = loss_fn(toutputs, tlabels, rank)
+        running_tloss += tloss.mean().item()
+
+        if step % 10 == 9:
+            print(f"{tloss} loss for step {step} in {epoch}")
+    
+    avg_tloss = running_tloss / (step+1)
+
+    print(f"Loss in testing for {model_name} was {avg_tloss}")
+    tloss_and_rank = (avg_tloss, rank)
+
+    with open(f'tloss-{rank}.pickle', 'wb') as f:
+        pickle.dump(tloss_and_rank, f)
+
+    cleanup()
+
+def test_model(test_dataset, model_name):
+    if model_name == "model_uv":
+        state = torch.load(f'{models_dir}/model_uv-...')
+            
+        state_dict = state['state_dict']
+
+        model_dict = OrderedDict()
+        pattern = re.compile('module.')
+        for k,v in state_dict.items():
+            if re.search("module", k):
+                model_dict[re.sub(pattern, '', k)] = v
+            else:
+                model_dict = state_dict
+        model_fusion.load_state_dict(model_dict)
+
+        world_size = 2
+
+        mp.spawn(
+                eval,
+                args=(world_size, test_dataset, model_uv, "model_fusion"),
+                nprocs=world_size
+            )
+        
+        avg_tloss = 0
+
+        for file in os.listdir():
+            if file.endswith('.pickle'):
+                with open(file, 'wb') as tloss_tuple:
+                    avg_tloss += pickle.load(tloss_tuple)[0]
+        
+        return (avg_tloss/world_size)
+
+
 if __name__ == '__main__':
     splits = {'train':0.8, 'validate':0.1, 'test':0.1}
     train_dataset_uv, validate_dataset_uv, test_dataset_uv, train_dataset_z, validate_dataset_z, test_dataset_z, train_dataset_meta, validate_dataset_meta, \
@@ -508,16 +685,5 @@ if __name__ == '__main__':
 
     print("Training single models")
 
-    train_single_models(train_dataset_uv, validate_dataset_uv, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
-    
-    """
-    Need to be very careful here about shuffling. In the fusion training we require two dataloaders at the same time. One which indexes
-    the other so they can't be shuffled.
-    """
-
-    # training_loader_uvzmeta = torch.utils.data.DataLoader(train_concat_ds, batch_size=4, shuffle=False, num_workers=4, drop_last=True)
-    # validation_loader_uvzmeta = torch.utils.data.DataLoader(validate_concat_ds, batch_size=4, shuffle=False, num_workers=4, drop_last=True)
-
-    # train_fusion_model(training_loader_uvzmeta, validation_loader_uvzmeta, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)
-
-    # model_eval(validation_loader_uvzmeta)
+    train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
+    # train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)

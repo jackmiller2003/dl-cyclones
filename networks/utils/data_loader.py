@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from multiprocessing import Pool
 import os
 import numpy as np
 import json
@@ -8,9 +9,13 @@ import matplotlib.pyplot as plt
 import xarray
 
 tracks_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'tracks/available.json')
+one_hot_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'tracks/one_hot_dict.json')
 
 with open(tracks_path, 'r') as ptj:
     tracks_dict = json.load(ptj)
+
+with open(tracks_path, 'r') as oht:
+    one_hot_dict = json.load(oht)
 
 # Taken from https://discuss.pytorch.org/t/train-simultaneously-on-two-datasets/649
 class ConcatDataset(torch.utils.data.Dataset):
@@ -33,62 +38,82 @@ class CycloneDataset(Dataset):
     TODO: Need to test
     """
 
-    def __init__(self, cyclone_dir, transform=None, target_transform=None, target_parameters=[0,1], time_step_back=1):
+    def __init__(self, cyclone_dir, transform=None, target_transform=None, target_parameters=[0,1], time_step_back=1, day_pred=True):
         self.tracks_dict = tracks_dict
         self.cyclone_dir = cyclone_dir
         self.target_transform = target_transform
         self.time_step_back = time_step_back
         self.target_parameters = target_parameters
+        self.day_predict = day_pred
 
         
     # I think this function might be causing issues.
     def __len__(self):
         length = 0
-        for cyclone, data in tracks_dict.items():
-            length += len(data['coordinates'][:-2])
-        
-        return length            
+        if self.day_predict:
+            for cyclone, data in tracks_dict.items():
+                if len(data['coordinates']) > 9:
+                    length += len(data['coordinates'][:-9])
+            return length
+        else:
+            for cyclone, data in tracks_dict.items():
+                if len(data['coordinates']) > 2:
+                    length += len(data['coordinates'][:-2])
+            return length            
     
     def __getitem__(self, idx):
         i = 0
 
         for cyclone, data in tracks_dict.items():
             j = self.time_step_back + 1
-            for coordinate in data['coordinates'][:-2]:
-                if i == idx:
-                    
-                    cyclone_ds = xarray.open_dataset(self.cyclone_dir+cyclone)
-                    cyclone_ds_crop = cyclone_ds.to_array().to_numpy()
-                    cyclone_ds_crop = np.transpose(cyclone_ds_crop, (1, 0, 2, 3, 4))
 
-                    # print(f"Cyclone {cyclone} with {np.shape(cyclone_ds_crop)} and time crop {j-self.time_step_back-1} and {j}")
+            if self.day_predict:
+                bound = 9
+            else:
+                bound = 2
 
-                    cyclone_array = cyclone_ds_crop[j-self.time_step_back-1:j,self.target_parameters,:,:,:]
-                    # print(f"F1A: {cyclone_array[:,:,:,0,0]}")
-                    example = torch.from_numpy(cyclone_array)
-                    num_channels = int(5*len(self.target_parameters)*(1+self.time_step_back))
-
-                    if num_channels != example.shape[0] * example.shape[1] * example.shape[2]:
-                        print("Wrong shape detected")
+            if len(data['coordinates']) > bound:
+                for coordinate in data['coordinates'][:-bound]:
+                    if i == idx:
                         
-                    
-                    example = torch.reshape(example, (num_channels,160,160))
-                    # print(f"F1B: {example[:,0,0]}")
-                    label = torch.from_numpy(np.array([[
-                                                float(data['coordinates'][j-1][0]), float(data['coordinates'][j][0])], 
-                                                [float(data['coordinates'][j-1][1]), float(data['coordinates'][j][1])],
-                                                [float(data['categories'][j-1]), float(data['categories'][j])]
-                                                        ]))
-                    
-                    if torch.isnan(example).any():
-                        print(f"Example size is: {example.size()}")
-                        print(f"Cyclone: {cyclone}")
-                        print(f"Coordinate: {coordinate}")
+                        cyclone_ds = xarray.open_dataset(self.cyclone_dir+cyclone)                    
+                        cyclone_ds_new = cyclone_ds[dict(time=list(range(j-self.time_step_back-1,j)))]
+                        
+                        if self.target_parameters == [0,1]:
+                            cyclone_ds_new = cyclone_ds_new[['u','v']]
+                        elif self.target_parameters == [2]:
+                            cyclone_ds_new = cyclone_ds_new[['z']]
+                        
+                        cyclone_ds_crop_new = cyclone_ds_new.to_array().to_numpy()
+                        cyclone_ds_crop_new = np.transpose(cyclone_ds_crop_new, (1, 0, 2, 3, 4))
+                        
+                        example = torch.from_numpy(cyclone_ds_crop_new)
+                        num_channels = int(5*len(self.target_parameters)*(1+self.time_step_back))                          
+                        example = torch.reshape(example, (num_channels,160,160))
 
-                    return example, label
+                        if self.day_predict:
 
-                i += 1
-                j += 1
+                            label = torch.from_numpy(np.array([[
+                                                        float(data['coordinates'][j-1][0]), float(data['coordinates'][j+bound-2][0])], 
+                                                        [float(data['coordinates'][j-1][1]), float(data['coordinates'][j+bound-2][1])],
+                                                        [float(data['categories'][j-1]), float(data['categories'][j])]
+                                                                ]))
+                        else:
+                            label = torch.from_numpy(np.array([[
+                                                        float(data['coordinates'][j-1][0]), float(data['coordinates'][j][0])], 
+                                                        [float(data['coordinates'][j-1][1]), float(data['coordinates'][j][1])],
+                                                        [float(data['categories'][j-1]), float(data['categories'][j])]
+                                                                ]))
+                        
+                        if torch.isnan(example).any():
+                            print(f"Example size is: {example.size()}")
+                            print(f"Cyclone: {cyclone}")
+                            print(f"Coordinate: {coordinate}")
+
+                        return example, label
+
+                    i += 1
+                    j += 1
 
 class MetaDataset(Dataset):
     """
@@ -100,16 +125,22 @@ class MetaDataset(Dataset):
     """
 
 
-    def __init__(self, time_step_back=1):
+    def __init__(self, time_step_back=1, day_pred=True):
         self.time_step_back = time_step_back
+        self.day_predict = True
     
     def __len__(self):
         length = 0
-        
-        for cyclone, data in tracks_dict.items():
-            length += len(data['coordinates'][:-2])
-        
-        return length
+        if self.day_predict:
+            for cyclone, data in tracks_dict.items():
+                if len(data['coordinates']) > 9:
+                    length += len(data['coordinates'][:-9])
+            return length
+        else:
+            for cyclone, data in tracks_dict.items():
+                if len(data['coordinates']) > 2:
+                    length += len(data['coordinates'][:-2])
+            return length  
     
     def __getitem__(self, idx):
         i = 0
@@ -117,8 +148,19 @@ class MetaDataset(Dataset):
         for cyclone, data in tracks_dict.items():
             j = self.time_step_back + 1
 
+            if self.day_predict:
+                bound = 9
+            else:
+                bound = 2
+
             for coordinate in data['coordinates'][:-2]:
                 if i == idx:
+                    
+                    sub_basin_encoding = np.zeros((9,1))
+                    sub_basin_encoding[one_hot_dict[data['subbasin']]] = 1
+
+                    print(sub_basin_encoding)
+
                     example = torch.from_numpy(np.array([
                         float(data['categories'][j-2]),
                         float(data['categories'][j-1]),
@@ -128,11 +170,22 @@ class MetaDataset(Dataset):
                         float(data['coordinates'][j-1][1])
                     ]))
 
-                    label = torch.from_numpy(np.array([[
-                                                float(data['coordinates'][j-1][0]), float(data['coordinates'][j][0])], 
-                                                [float(data['coordinates'][j-1][1]), float(data['coordinates'][j][1])],
-                                                [float(data['categories'][j-1]), float(data['categories'][j])]
-                                                        ]))
+                    # Size is now 6 + 9 = 15
+                    example = np.append(example, sub_basin_encoding)
+
+                    if self.day_predict:
+
+                        label = torch.from_numpy(np.array([[
+                                                    float(data['coordinates'][j-1][0]), float(data['coordinates'][j+bound-2][0])], 
+                                                    [float(data['coordinates'][j-1][1]), float(data['coordinates'][j+bound-2][1])],
+                                                    [float(data['categories'][j-1]), float(data['categories'][j])]
+                                                            ]))
+                    else:
+                        label = torch.from_numpy(np.array([[
+                                                    float(data['coordinates'][j-1][0]), float(data['coordinates'][j][0])], 
+                                                    [float(data['coordinates'][j-1][1]), float(data['coordinates'][j][1])],
+                                                    [float(data['categories'][j-1]), float(data['categories'][j])]
+                                                            ]))
 
                     return example, label
 
@@ -157,8 +210,8 @@ def load_datasets(splits: dict):
     full_dataset_meta = MetaDataset()
     meta_length = len(full_dataset_meta)
 
-    if full_length != meta_length:
-        raise Exception('Something is wrong with the meta length!')
+    # if full_length != meta_length:
+    #     raise Exception('Something is wrong with the meta length!')
     
     train_dataset_meta, validate_dataset_meta, test_dataset_meta = torch.utils.data.random_split(full_dataset_meta, 
         [train_length, val_length, test_length])
@@ -179,13 +232,6 @@ def get_first_example():
     train_dataloader = DataLoader(training_data, batch_size=4, shuffle=False)
     
     train_features, train_labels = next(iter(train_dataloader))
-    # print(train_features)
-    # print(train_labels)
-
-    # print(f"Feature batch type: {type(train_features)}")
-    # print(f"Labels batch type: {type(train_labels)}")
-    # print(f"Feature batch size: {train_features.shape}")
-    # print(f"Labels batch size: {train_labels.shape}")
     img = train_features[0][0][0][1].squeeze()
     label = train_labels[0]
     plt.imshow(img, cmap="gray")

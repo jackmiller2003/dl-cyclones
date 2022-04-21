@@ -15,13 +15,8 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
             * Target location -> (lon (t-1, t), lat (t-1, t), intensity (t-1,t))
         """
         
-        print(f'cuda:{rank}')
-        
-        output_tensor = output_tensor.to(rank)
-        target_tensor = target_tensor.to(rank)
-        
-        print(f"Output tensor is on {output_tensor.get_device()}")
-        print(f"Target tensor is on {target_tensor.get_device()}")
+        # output_tensor = output_tensor.to(rank)
+        # target_tensor = target_tensor.to(rank)
 
         # print(f"Target tensor: {target_tensor.size()}")
         # print(f"Output tensor: {output_tensor.size()}")
@@ -38,7 +33,8 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
         # print(f"Predicted intensity: {pred_intensity[0]}")
         # print(f"True intensity: {true_intensity[0]}")
         
-        R = 6371e3
+        # R = 6371e3
+        R = 6371 # in km
 
         lon0, lat0 = true_location[:,0], true_location[:,1]
         lon1,lat1 = pred_location[:,0], pred_location[:,1]
@@ -50,20 +46,22 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
         delta_lambda = (lon1 - lon0) * (math.pi/180)
 
         a = torch.pow(torch.sin(delta_phi/2),2) + torch.cos(phi0) * torch.cos(phi1) * torch.pow(torch.sin(delta_lambda/2),2) 
-        a = a.float() + 1e-6
-        # print(f"a: {a}")
+        a = a.float()
         c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1-a))
         c = c.double()
+        c = R * c
         
         i = intensity_scale * (intensity_func(true_intensity) * (true_intensity-pred_intensity)) + 1e-6
 
         # print(f"c {c}")
         # print(f"i {i}")
         
-        mean_dist_loss = torch.sum(c)/c.shape[0]
-        mean_intensity_loss = torch.sum(i)/i.shape[0]
+        mean_dist_loss = torch.sqrt(torch.sum(torch.pow(c,2))/output_tensor.shape[0])
+        # mean_intensity_loss = torch.sum(i)/i.shape[0]
         
         loss_out = mean_dist_loss #+ mean_intensity_loss
+        
+        # loss_out = loss_out.to(rank)
         
         # print(f"Loss is {loss_out}")
         # print(f"c is {c}")

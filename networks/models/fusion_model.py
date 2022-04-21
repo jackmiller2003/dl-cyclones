@@ -39,7 +39,7 @@ class Fusion_Model(nn.Module):
         self.fc3_bn_z = nn.BatchNorm1d(64)
         self.fc4_z = nn.Linear(in_features=64, out_features=8)
 
-        self.meta_in_channels = (time_steps_back+1) * 3
+        self.meta_in_channels = (time_steps_back+1) * 3 + 9
         self.fc1_meta = nn.Linear(in_features=self.meta_in_channels, out_features=5)
         self.fc2_meta = nn.Linear(in_features=5, out_features=5)
 
