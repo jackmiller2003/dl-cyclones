@@ -23,10 +23,10 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
 
         pred_location = target_tensor[:,0:2,0] + output_tensor[:,0:2]
         true_location = target_tensor[:,0:2,1]
-        pred_intensity = target_tensor[:,2,0] + output_tensor[:,2]
-        pred_intensity = pred_intensity.view(-1,1)
-        true_intensity = target_tensor[:,2,1]
-        true_intensity = true_intensity.view(-1,1)
+        # pred_intensity = target_tensor[:,2,0] + output_tensor[:,2]
+        # pred_intensity = pred_intensity.view(-1,1)
+        # true_intensity = target_tensor[:,2,1]
+        # true_intensity = true_intensity.view(-1,1)
 
         # print(f"Predicted location: {pred_location[0]}")
         # print(f"True location: {true_location[0]}")
@@ -51,7 +51,7 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
         c = c.double()
         c = R * c
         
-        i = intensity_scale * (intensity_func(true_intensity) * (true_intensity-pred_intensity)) + 1e-6
+        # i = intensity_scale * (intensity_func(true_intensity) * (true_intensity-pred_intensity)) + 1e-6
 
         # print(f"c {c}")
         # print(f"i {i}")

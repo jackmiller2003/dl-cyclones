@@ -26,7 +26,7 @@ import torch.multiprocessing as mp
 
 def setup(rank, world_size):
     os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12352'
+    os.environ['MASTER_PORT'] = '12351'
 
     # initialize the process group
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
@@ -42,32 +42,29 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
     model_z = Z_Model()
     model_meta = Meta_Model()
 
-    if True:#'model_uv-0.0038049714482137156' in os.listdir(models_dir):
-        print("model_uv")
-        EPOCHS = 100
-        # state = torch.load(f'{models_dir}/model_uv-0.0038049714482137156')
-        
-        
-        # state_dict = state['state_dict']
-        # optimizer_dict = state['optimizer']
-        
-        # model_dict = OrderedDict()
-        # pattern = re.compile('module.')
-        # for k,v in state_dict.items():
-        #     if re.search("module", k):
-        #         model_dict[re.sub(pattern, '', k)] = v
-        #     else:
-        #         model_dict = state_dict
-        # model_uv.load_state_dict(model_dict)
-        
-        optimizer_dict = {}
+    if False:#'model_uv-0.0038049714482137156' in os.listdir(models_dir):
+        EPOCHS = 10
+
+        if False:
+            state = torch.load(f'{models_dir}/model_uv-53.321191597611026')            
+            state_dict = state['state_dict']
+            optimizer_dict = state['optimizer']
+            
+            model_dict = OrderedDict()
+            pattern = re.compile('module.')
+            for k,v in state_dict.items():
+                if re.search("module", k):
+                    model_dict[re.sub(pattern, '', k)] = v
+                else:
+                    model_dict = state_dict
+            model_uv.load_state_dict(model_dict)
 
         optimizer_params = {
             'learning_rate':1e-3,
             'betas':betas,
             'eps':eps,
             'weight_decay':weight_decay,
-            'optimizer_dict':optimizer_dict
+            'optimizer_dict':{}
         }
         
         print("Spawned processes")
@@ -80,8 +77,6 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
                 args=(world_size, train_dataset_uv, model_uv, optimizer_params, epoch, "model_uv"),
                 nprocs=world_size
             )
-            
-            print("Up to here...")
             
             state = torch.load(f'{models_dir}/model_uv_scratch')
             
@@ -111,29 +106,30 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
                 nprocs=world_size
             )
 
-    if 'model_z-0.004493883401543523' in os.listdir(models_dir):
-        EPOCHS = 16
-        print("model_z-0.004493883401543523")
-        state = torch.load(f'{models_dir}/model_z-0.004493883401543523')
+    if True:
+        EPOCHS = 10
+        print("model_z")
+        if False:
+            state = torch.load(f'{models_dir}/model_z-130.15425896357115')
 
-        state_dict = state['state_dict']
-        optimizer_dict = state['optimizer']
+            state_dict = state['state_dict']
+            optimizer_dict = state['optimizer']
 
-        model_dict = OrderedDict()
-        pattern = re.compile('module.')
-        for k,v in state_dict.items():
-            if re.search("module", k):
-                model_dict[re.sub(pattern, '', k)] = v
-            else:
-                model_dict = state_dict
-        model_z.load_state_dict(model_dict)
+            model_dict = OrderedDict()
+            pattern = re.compile('module.')
+            for k,v in state_dict.items():
+                if re.search("module", k):
+                    model_dict[re.sub(pattern, '', k)] = v
+                else:
+                    model_dict = state_dict
+            model_z.load_state_dict(model_dict)
 
         optimizer_params = {
             'learning_rate':1e-5,
             'betas':betas,
             'eps':eps,
             'weight_decay':weight_decay,
-            'optimizer_dict':optimizer_dict
+            'optimizer_dict':{}
         }
 
         print("Spawned processes")
@@ -170,22 +166,22 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
                 nprocs=world_size
             )
         
-    if False: #'model_meta-0.004831329930796832' in os.listdir(models_dir):
-        EPOCHS = 16
-        print("model_meta-0.004831329930796832")
-        state = torch.load(f'{models_dir}/model_meta-0.004831329930796832')
+    if True: #'model_meta-0.004831329930796832' in os.listdir(models_dir):
+        EPOCHS = 35
+        print("model_meta")
+#         state = torch.load(f'{models_dir}/model_meta-0.004831329930796832')
 
-        state_dict = state['state_dict']
-        optimizer_dict = state['optimizer']
+#         state_dict = state['state_dict']
+#         optimizer_dict = state['optimizer']
 
-        model_dict = OrderedDict()
-        pattern = re.compile('module.')
-        for k,v in state_dict.items():
-            if re.search("module", k):
-                model_dict[re.sub(pattern, '', k)] = v
-            else:
-                model_dict = state_dict
-        model_meta.load_state_dict(model_dict)
+#         model_dict = OrderedDict()
+#         pattern = re.compile('module.')
+#         for k,v in state_dict.items():
+#             if re.search("module", k):
+#                 model_dict[re.sub(pattern, '', k)] = v
+#             else:
+#                 model_dict = state_dict
+#         model_meta.load_state_dict(model_dict)
 
         optimizer_params = {
             'learning_rate':1e-5,
@@ -229,7 +225,6 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
                 nprocs=world_size
             )
         
-            
         return
         
 
@@ -522,6 +517,8 @@ def train(rank, world_size, dataset, model, optimizer_params, epoch, model_name)
     dataloader.sampler.set_epoch(epoch)
     
     loss_fn = L2_Dist_Func_Intensity().to(rank)
+    
+    model.train()
 
     with torch.autograd.profiler.profile() as prof:
     
@@ -548,7 +545,7 @@ def train(rank, world_size, dataset, model, optimizer_params, epoch, model_name)
     state = {
         'epoch': epoch,
         'state_dict': model.state_dict(),
-        'optimizer': optimizer_params["optimizer_dict"]
+        'optimizer': optimizer.state_dict()
     }
     print("Saved model")
     torch.save(state, model_path)
@@ -572,6 +569,8 @@ def validate(rank, world_size, dataset, model, optimizer_params, epoch, model_na
     running_vloss = 0
 
     best_vloss = 1e10
+    
+    model.eval()
     
     for step, vdata in enumerate(dataloader):
         vinputs, vlabels = vdata
@@ -610,6 +609,7 @@ def validate(rank, world_size, dataset, model, optimizer_params, epoch, model_na
     cleanup()
 
 def eval(rank, world_size, dataset, model, model_name):
+    epoch = 1
     setup(rank, world_size)
     # prepare the dataloader
     dataloader = prepare(rank, world_size, dataset)
@@ -630,6 +630,9 @@ def eval(rank, world_size, dataset, model, model_name):
         toutputs = model(tinputs).to(rank)
         tlabels = tlabels.to(rank)
         tloss = loss_fn(toutputs, tlabels, rank)
+        print(f"test labels: {tlabels}")
+        print(f"test labels: {toutputs}")
+        print(f"test labels: {tloss.mean().item()}")
         running_tloss += tloss.mean().item()
 
         if step % 10 == 9:
@@ -647,7 +650,9 @@ def eval(rank, world_size, dataset, model, model_name):
 
 def test_model(test_dataset, model_name):
     if model_name == "model_uv":
-        state = torch.load(f'{models_dir}/model_uv-...')
+        state = torch.load(f'{models_dir}/model_uv_scratch')
+        
+        model_uv = UV_Model()
             
         state_dict = state['state_dict']
 
@@ -658,13 +663,13 @@ def test_model(test_dataset, model_name):
                 model_dict[re.sub(pattern, '', k)] = v
             else:
                 model_dict = state_dict
-        model_fusion.load_state_dict(model_dict)
+        model_uv.load_state_dict(model_dict)
 
         world_size = 2
 
         mp.spawn(
                 eval,
-                args=(world_size, test_dataset, model_uv, "model_fusion"),
+                args=(world_size, test_dataset, model_uv, "model_uv"),
                 nprocs=world_size
             )
         
@@ -681,9 +686,10 @@ def test_model(test_dataset, model_name):
 if __name__ == '__main__':
     splits = {'train':0.8, 'validate':0.1, 'test':0.1}
     train_dataset_uv, validate_dataset_uv, test_dataset_uv, train_dataset_z, validate_dataset_z, test_dataset_z, train_dataset_meta, validate_dataset_meta, \
-    test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds = load_datasets(splits)
-
+    test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds = load_datasets(splits)            
+    
     print("Training single models")
-
     train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
     # train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)
+
+    # Want to test 2014253N13260

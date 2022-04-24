@@ -102,11 +102,12 @@ def convert_lat_lon(tracks_file='tracks.json', proc_tracks_file='proc_tracks.jso
         new_dict['coordinates'] = new_coords
         add_to_json(sid, new_dict, proc_tracks_file)
 
-def all_avaliable_tracks(tracks_file='proc_tracks.json', data_local='/g/data/x77/ob2720/cyclone_binaries'):
+def all_avaliable_tracks(tracks_file='proc_tracks.json', data_local='/g/data/x77/ob2720/cyclone_binaries', test_set_flag=False):
     with open(tracks_file, 'r') as tracks_json:
         tracks_dict = json.load(tracks_json)
     
     cyclones_saved = os.listdir(data_local)
+    test_set = os.listdir('/g/data/x77/jm0124/test_holdout')
     
     for sid in tqdm(cyclones_saved):
         if sid == 'old':
@@ -117,6 +118,9 @@ def all_avaliable_tracks(tracks_file='proc_tracks.json', data_local='/g/data/x77
             print(f"Has nan: {sid}")
             continue
         if sid[:-3] in tracks_dict:
+            if (sid in test_set) and not test_set_flag:
+                continue
+
             previous_month = np.datetime64(tracks_dict[sid[:-3]]['iso_times'][0]).astype(object).month
             for iso_time in tracks_dict[sid[:-3]]['iso_times']:
                 current_month = (np.datetime64(iso_time)).astype(object).month
@@ -128,7 +132,8 @@ def all_avaliable_tracks(tracks_file='proc_tracks.json', data_local='/g/data/x77
                     break
             else:
                 data = {sid:tracks_dict[sid[:-3]]}
-                append_to_json('available.json', data)    
+                # append_to_json('available.json', data)    
+                append_to_json('test.json', data)
 
 def get_generate_sub_one_hot():
     with open('proc_tracks.json', 'r') as tracks_json:
@@ -155,4 +160,4 @@ def get_generate_sub_one_hot():
 
 if __name__ == '__main__':
     # save_all_storms('ibtracs.ALL.list.v04r00.csv', save_to_file="tracks.json", year_init=1979)
-    get_generate_sub_one_hot()
+    all_avaliable_tracks(tracks_file='proc_tracks.json', data_local='/g/data/x77/jm0124/test_holdout', test_set_flag=True)
