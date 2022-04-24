@@ -37,13 +37,6 @@ def create_netcdf_file_for_track(ssid) -> None:
     #p = pyinstrument.Profiler()
 
     times = track["iso_times"]
-
-    # MONTH ISSUE FIX: skip over netcdf files that worked
-    # REMOVE WHEN PROCESSING IS COMPLETE
-    first_month = np.datetime64(times[0]).item().month
-    last_month = np.datetime64(times[-1]).item().month
-    if first_month == last_month: return
-
     coords = [(lat, long) for [long, lat] in track['coordinates']]
     levels = [225,500,650,750,850]   # In the tropical cyclone forecasting fusion networks paper they use 700, 500, 225
 
@@ -59,6 +52,10 @@ def create_netcdf_file_for_track(ssid) -> None:
     print(f"Finished processing cyclone {ssid} in {e_time-s_time:.2f} seconds")
     #p.print(unicode=True, color=True)
 
+def netcdf_file_exists_for_track(ssid) -> bool:
+    import os
+    return os.path.isfile(f'{get_user_path()}/cyclone_binaries/{ssid}.nc')
+
 if __name__ == '__main__':
     print("Initialising...")
     #client = Client(threads_per_worker=1, local_directory=os.getenv("PBS_JOBFS"))
@@ -70,7 +67,8 @@ if __name__ == '__main__':
     track_ids = list(tracks.keys())[start:end]
     for ssid in track_ids:
         try:
-            create_netcdf_file_for_track(ssid)
+            if not netcdf_file_exists_for_track(ssid):
+                create_netcdf_file_for_track(ssid)
         except Exception as e:
             traceback.print_exc()
             print(f"Failed to process {ssid}")
