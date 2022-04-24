@@ -52,6 +52,10 @@ def create_netcdf_file_for_track(ssid) -> None:
     print(f"Finished processing cyclone {ssid} in {e_time-s_time:.2f} seconds")
     #p.print(unicode=True, color=True)
 
+def netcdf_file_exists_for_track(ssid) -> bool:
+    import os
+    return os.path.isfile(f'{get_user_path()}/cyclone_binaries/{ssid}.nc')
+
 if __name__ == '__main__':
     print("Initialising...")
     #client = Client(threads_per_worker=1, local_directory=os.getenv("PBS_JOBFS"))
@@ -63,7 +67,8 @@ if __name__ == '__main__':
     track_ids = list(tracks.keys())[start:end]
     for ssid in track_ids:
         try:
-            create_netcdf_file_for_track(ssid)
+            if not netcdf_file_exists_for_track(ssid):
+                create_netcdf_file_for_track(ssid)
         except Exception as e:
             traceback.print_exc()
             print(f"Failed to process {ssid}")
