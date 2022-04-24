@@ -70,7 +70,10 @@ class Fusion_Model(nn.Module):
                 nn.init.xavier_normal_(m.weight, gain=math.sqrt(2))
                 nn.init.normal_(m.bias,mean=0, std=1)
     
-    def forward(self,example,meta_example):
+    def forward(self,example_both):
+        example = example_both[0]
+        meta_example = example_both[1]
+
         list1 = [*list(range(0,10)), *list(range(15,25))]
         list2 = [*list(range(10,15)), *list(range(25,30))]
         x1 = example[:,list1,:,:]

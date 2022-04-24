@@ -1,5 +1,6 @@
 import torch
 import math
+import numpy as np
 
 def scaled_linear_func(x):
     return x+5
@@ -23,6 +24,7 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
 
         pred_location = target_tensor[:,0:2,0] + output_tensor[:,0:2]
         true_location = target_tensor[:,0:2,1]
+
         # pred_intensity = target_tensor[:,2,0] + output_tensor[:,2]
         # pred_intensity = pred_intensity.view(-1,1)
         # true_intensity = target_tensor[:,2,1]
@@ -47,26 +49,42 @@ class L2_Dist_Func_Intensity(torch.nn.Module):
 
         a = torch.pow(torch.sin(delta_phi/2),2) + torch.cos(phi0) * torch.cos(phi1) * torch.pow(torch.sin(delta_lambda/2),2) 
         a = a.float()
-        c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1-a))
+        c = 2 * R * torch.atan2(torch.sqrt(a), torch.sqrt(1-a))
         c = c.double()
-        c = R * c
         
         # i = intensity_scale * (intensity_func(true_intensity) * (true_intensity-pred_intensity)) + 1e-6
-
-        # print(f"c {c}")
-        # print(f"i {i}")
         
         mean_dist_loss = torch.sqrt(torch.sum(torch.pow(c,2))/output_tensor.shape[0])
-        # mean_intensity_loss = torch.sum(i)/i.shape[0]
         
-        loss_out = mean_dist_loss #+ mean_intensity_loss
-        
-        # loss_out = loss_out.to(rank)
-        
-        # print(f"Loss is {loss_out}")
-        # print(f"c is {c}")
+        loss_out = mean_dist_loss
 
         return loss_out
 
+def test_loss():
+    sydney = (-33.8688, 151.2093)
+    canberra = (-35.2802, 149.1310)
 
+    target_tensor = np.array([[
+        [0, 151.2093],
+        [0, -33.8688],
+        [0,0]
+                                ],
+        [
+        [0, 153.0260],
+        [0, -27.4705],
+        [0,0]
+                                ]])
+    
+    pred_tensor = np.array([
+        [149.1310, -35.2802, 0],
+        [145.7710, -16.9203, 0]
+                            ])
 
+    loss_fn = L2_Dist_Func_Intensity()
+
+    loss = loss_fn(torch.from_numpy(pred_tensor), torch.from_numpy(target_tensor), 0)
+
+    print(loss)
+
+if __name__ == "__main__":
+    test_loss()

@@ -88,12 +88,14 @@ class CycloneDataset(Dataset):
                             cyclone_ds_new = cyclone_ds_new[['u','v']]
                         elif self.target_parameters == [2]:
                             cyclone_ds_new = cyclone_ds_new[['z']]
+                        elif self.target_parameters == [0,1,2]:
+                            cyclone_ds_new = cyclone_ds_new[['u','v', 'z']]
                         
                         cyclone_ds_crop_new = cyclone_ds_new.to_array().to_numpy()
                         cyclone_ds_crop_new = np.transpose(cyclone_ds_crop_new, (1, 0, 2, 3, 4))
                         
                         example = torch.from_numpy(cyclone_ds_crop_new)
-                        num_channels = int(5*len(self.target_parameters)*(1+self.time_step_back))                          
+                        num_channels = int(5*len(self.target_parameters)*(1+self.time_step_back))             
                         example = torch.reshape(example, (num_channels,160,160))
 
                         if self.day_predict:
@@ -159,44 +161,43 @@ class MetaDataset(Dataset):
             else:
                 bound = 2
 
-            for coordinate in data['coordinates'][:-2]:
-                if i == idx:
-                    
-                    sub_basin_encoding = np.zeros((9,1))
-                    sub_basin_encoding[one_hot_dict[data['subbasin']]] = 1
+            if len(data['coordinates']) > bound:
+                for coordinate in data['coordinates'][:-bound]:
+                    if i == idx:
+                        
+                        sub_basin_encoding = np.zeros((9,1))
+                        sub_basin_encoding[one_hot_dict[data['subbasin'][j-1]]] = 1
 
-                    print(sub_basin_encoding)
+                        example = torch.from_numpy(np.array([
+                            float(data['categories'][j-2]),
+                            float(data['categories'][j-1]),
+                            float(data['coordinates'][j-2][0]),
+                            float(data['coordinates'][j-2][1]),
+                            float(data['coordinates'][j-1][0]),
+                            float(data['coordinates'][j-1][1])
+                        ]))
 
-                    example = torch.from_numpy(np.array([
-                        float(data['categories'][j-2]),
-                        float(data['categories'][j-1]),
-                        float(data['coordinates'][j-2][0]),
-                        float(data['coordinates'][j-2][1]),
-                        float(data['coordinates'][j-1][0]),
-                        float(data['coordinates'][j-1][1])
-                    ]))
+                        # Size is now 6 + 9 = 15
+                        example = np.append(example, sub_basin_encoding)
 
-                    # Size is now 6 + 9 = 15
-                    example = np.append(example, sub_basin_encoding)
+                        if self.day_predict:
 
-                    if self.day_predict:
+                            label = torch.from_numpy(np.array([[
+                                                        float(data['coordinates'][j-1][0]), float(data['coordinates'][j+bound-2][0])], 
+                                                        [float(data['coordinates'][j-1][1]), float(data['coordinates'][j+bound-2][1])],
+                                                        [float(data['categories'][j-1]), float(data['categories'][j])]
+                                                                ]))
+                        else:
+                            label = torch.from_numpy(np.array([[
+                                                        float(data['coordinates'][j-1][0]), float(data['coordinates'][j][0])], 
+                                                        [float(data['coordinates'][j-1][1]), float(data['coordinates'][j][1])],
+                                                        [float(data['categories'][j-1]), float(data['categories'][j])]
+                                                                ]))
 
-                        label = torch.from_numpy(np.array([[
-                                                    float(data['coordinates'][j-1][0]), float(data['coordinates'][j+bound-2][0])], 
-                                                    [float(data['coordinates'][j-1][1]), float(data['coordinates'][j+bound-2][1])],
-                                                    [float(data['categories'][j-1]), float(data['categories'][j])]
-                                                            ]))
-                    else:
-                        label = torch.from_numpy(np.array([[
-                                                    float(data['coordinates'][j-1][0]), float(data['coordinates'][j][0])], 
-                                                    [float(data['coordinates'][j-1][1]), float(data['coordinates'][j][1])],
-                                                    [float(data['categories'][j-1]), float(data['categories'][j])]
-                                                            ]))
+                        return example, label
 
-                    return example, label
-
-                i += 1
-                j += 1
+                    i += 1
+                    j += 1
 
 
 def load_datasets(splits: dict):

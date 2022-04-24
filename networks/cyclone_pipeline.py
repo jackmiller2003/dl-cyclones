@@ -26,7 +26,7 @@ import torch.multiprocessing as mp
 
 def setup(rank, world_size):
     os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12351'
+    os.environ['MASTER_PORT'] = '12350'
 
     # initialize the process group
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
@@ -45,8 +45,8 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
     if False:#'model_uv-0.0038049714482137156' in os.listdir(models_dir):
         EPOCHS = 10
 
-        if False:
-            state = torch.load(f'{models_dir}/model_uv-53.321191597611026')            
+        if True:
+            state = torch.load(f'{models_dir}/model_uv-64.7119321766501')            
             state_dict = state['state_dict']
             optimizer_dict = state['optimizer']
             
@@ -106,7 +106,7 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
                 nprocs=world_size
             )
 
-    if True:
+    if False:
         EPOCHS = 10
         print("model_z")
         if False:
@@ -184,11 +184,11 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
 #         model_meta.load_state_dict(model_dict)
 
         optimizer_params = {
-            'learning_rate':1e-5,
+            'learning_rate':2e-3,
             'betas':betas,
             'eps':eps,
             'weight_decay':weight_decay,
-            'optimizer_dict':optimizer_dict
+            'optimizer_dict':{}
         }
 
         print("Spawned processes")
@@ -198,7 +198,7 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
             world_size = 2
             mp.spawn(
                 train,
-                args=(world_size, train_dataset_meta, model_z, optimizer_params, epoch, "model_meta"),
+                args=(world_size, train_dataset_meta, model_meta, optimizer_params, epoch, "model_meta"),
                 nprocs=world_size
             )
             
@@ -240,9 +240,9 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         model_uv = UV_Model()
 
         # Need to specify here the exact models
-        if 'model_uv-0.0038049714482137156' in os.listdir(models_dir):
+        if 'model_uv-64.97959783643554' in os.listdir(models_dir):
 
-            state = torch.load(f'{models_dir}/model_uv-0.0038049714482137156')
+            state = torch.load(f'{models_dir}/model_uv-64.97959783643554')
 
             state_dict = state['state_dict']
             optimizer_dict = state['optimizer']
@@ -261,8 +261,8 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         
         model_z = Z_Model()
 
-        if 'model_z-0.004493883401543523' in os.listdir(models_dir):
-            state = torch.load(f'{models_dir}/model_z-0.004493883401543523')
+        if 'model_z-180.81762405105079' in os.listdir(models_dir):
+            state = torch.load(f'{models_dir}/model_z-180.81762405105079')
 
             state_dict = state['state_dict']
             optimizer_dict = state['optimizer']
@@ -281,8 +281,8 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
 
         model_meta = Meta_Model()
 
-        if 'model_meta-0.004493883401543523' in os.listdir(models_dir):
-            state = torch.load(f'{models_dir}/model_meta-0.004493883401543523')
+        if 'model_meta-389.45942573206014' in os.listdir(models_dir):
+            state = torch.load(f'{models_dir}/model_meta-389.45942573206014')
 
             state_dict = state['state_dict']
             optimizer_dict = state['optimizer']
@@ -436,6 +436,8 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         }
 
         print("Spawned processes")
+        
+        EPOCHS = 10
 
         for epoch in range(1,EPOCHS+1):
 
@@ -572,16 +574,17 @@ def validate(rank, world_size, dataset, model, optimizer_params, epoch, model_na
     
     model.eval()
     
-    for step, vdata in enumerate(dataloader):
-        vinputs, vlabels = vdata
-        vinputs = vinputs
-        voutputs = model(vinputs).to(rank)
-        vlabels = vlabels.to(rank)
-        vloss = loss_fn(voutputs, vlabels, rank)
-        running_vloss += vloss.mean().item()
+    with torch.no_grad():
+        for step, vdata in enumerate(dataloader):
+            vinputs, vlabels = vdata
+            vinputs = vinputs
+            voutputs = model(vinputs).to(rank)
+            vlabels = vlabels.to(rank)
+            vloss = loss_fn(voutputs, vlabels, rank)
+            running_vloss += vloss.mean().item()
 
-        if step % 10 == 9:
-            print(f"{vloss} loss for step {step} in {epoch}")
+            if step % 10 == 9:
+                print(f"{vloss} loss for step {step} in {epoch}")
     
     avg_vloss = running_vloss / (step+1)
 
@@ -688,8 +691,8 @@ if __name__ == '__main__':
     train_dataset_uv, validate_dataset_uv, test_dataset_uv, train_dataset_z, validate_dataset_z, test_dataset_z, train_dataset_meta, validate_dataset_meta, \
     test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds = load_datasets(splits)            
     
-    print("Training single models")
-    train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
-    # train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)
+    print("Training fusion model")
+    #train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
+    train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)
 
     # Want to test 2014253N13260

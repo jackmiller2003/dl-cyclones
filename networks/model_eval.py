@@ -23,6 +23,8 @@ from geopandas import GeoDataFrame
 import geoplot
 from tqdm import tqdm
 from math import radians, cos, sin, asin, sqrt
+from math import atan2
+from utils.data_loader import *
 
 data_dir = '/g/data/x77/jm0124/test_holdout/'
 models_dir = '/g/data/x77/jm0124/models'
@@ -44,7 +46,7 @@ def haversine(lon1, lat1, lon2, lat2):
     dlon = lon2 - lon1 
     dlat = lat2 - lat1 
     a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-    c = 2 * asin(sqrt(a)) 
+    c = 2 * atan2(sqrt(a), sqrt(1-a))
     r = 6371 # Radius of earth in miles. Use 6371 for kilometers
     return c * r
 
@@ -130,15 +132,11 @@ def eval_on_cyclone(cyclone_id, model):
         polygons_dict['colour'].append('black')
         polygons_dict['geometry'].append(Point(lon,lat))
 
-    print(polygons_dict)
-
     df = pd.DataFrame(data_frame_dict)
     df2 = pd.DataFrame(polygons_dict)
 
     gdf = GeoDataFrame(df, geometry=gpd.points_from_xy(df.lon, df.lat))
     gdf2 = GeoDataFrame(df2, geometry=df2['geometry'])
-
-    print(gdf2)
 
     world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
 
@@ -151,15 +149,12 @@ def eval_on_cyclone(cyclone_id, model):
     gdf2.plot(ax=base, color=gdf2['colour'], alpha=0.9)
 
     square_distance = 0
-
-    for distance in distances:
-        square_distance += distance**2
     
-    rmse = (square_distance/len(distances))**(1/2)
+    mse = sum(distances)/len(distances)
 
-    print(f"{cyclone_id} and {rmse}")
+    print(f"{cyclone_id} and {mse}")
 
-    plt.savefig(f'world-{cyclone_id}-{rmse}.jpg', dpi=800)
+    plt.savefig(f'images/world-{cyclone_id}-{mse}.jpg', dpi=800)
     
 
 def get_examples_and_labels(cyclone):
@@ -171,9 +166,9 @@ def get_examples_and_labels(cyclone):
     examples = []
     labels = []
 
-    target_parameters = [0,1]
-
     data = test_dict[cyclone]
+
+    target_parameters = [0,1]
 
     for coordinate in data['coordinates'][:-bound]:
         cyclone_ds = xarray.open_dataset(data_dir+cyclone)
@@ -226,4 +221,5 @@ if __name__ == "__main__":
             model_dict = state_dict
     model_uv.load_state_dict(model_dict)
 
-    eval_on_cyclone('1986225N17134.nc', model_uv)
+    for cyclone in tqdm(test_dict):
+        eval_on_cyclone(cyclone, model_uv)
