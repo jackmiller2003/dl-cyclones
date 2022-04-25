@@ -50,9 +50,9 @@ class Fusion_Model(nn.Module):
 
         self.fc1 = nn.Linear(in_features=(576*2 + (time_steps_back+1) * 3 + 9), out_features=512)
         self.fc1_bn = nn.BatchNorm1d(512)
-        self.fc2 = nn.Linear(in_features=512, out_features=128)
-        self.fc2_bn = nn.BatchNorm1d(128)
-        self.fc3 = nn.Linear(in_features=128, out_features=64)
+        self.fc2 = nn.Linear(in_features=512, out_features=256)
+        self.fc2_bn = nn.BatchNorm1d(256)
+        self.fc3 = nn.Linear(in_features=256, out_features=64)
         self.fc3_bn = nn.BatchNorm1d(64)
         self.fc4 = nn.Linear(in_features=64, out_features=8)
         self.fc4_bn = nn.BatchNorm1d(8)
