@@ -15,9 +15,18 @@ from tqdm import tqdm
 from collections import OrderedDict
 import re
 import pickle
+from model_eval import *
+from utilities import *
 
 data_dir = '/g/data/x77/ob2720/cyclone_binaries/'
 models_dir = '/g/data/x77/jm0124/models'
+feature_dir = '/g/data/x77/jm0124/feature_vectors'
+label_json = '/home/156/jm0124/dl-cyclones/tracks/feature_labels.json'
+train_dir = '/g/data/x77/ob2720/partition/train'
+train_json = '/g/data/x77/ob2720/partition/train.json'
+
+with open(train_json, 'r') as tj:
+    train_dict = json.load(tj)
 
 import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
@@ -26,7 +35,7 @@ import torch.multiprocessing as mp
 
 def setup(rank, world_size):
     os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12350'
+    os.environ['MASTER_PORT'] = '12349'
 
     # initialize the process group
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
@@ -336,19 +345,19 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         model_fusion_dict['fc1_bn_uv.running_mean'] = pretrained_dict_uv['fc1_bn.running_mean']
         model_fusion_dict['fc1_bn_uv.running_var'] = pretrained_dict_uv['fc1_bn.running_var']
 
-        model_fusion_dict['fc2_uv.weight'] = pretrained_dict_uv['fc2.weight']
-        model_fusion_dict['fc2_uv.bias'] = pretrained_dict_uv['fc2.bias']
-        model_fusion_dict['fc2_bn_uv.weight'] = pretrained_dict_uv['fc2_bn.weight']
-        model_fusion_dict['fc2_bn_uv.bias'] = pretrained_dict_uv['fc2_bn.bias']
-        model_fusion_dict['fc2_bn_uv.running_mean'] = pretrained_dict_uv['fc2_bn.running_mean']
-        model_fusion_dict['fc2_bn_uv.running_var'] = pretrained_dict_uv['fc2_bn.running_var']
+        # model_fusion_dict['fc2_uv.weight'] = pretrained_dict_uv['fc2.weight']
+        # model_fusion_dict['fc2_uv.bias'] = pretrained_dict_uv['fc2.bias']
+        # model_fusion_dict['fc2_bn_uv.weight'] = pretrained_dict_uv['fc2_bn.weight']
+        # model_fusion_dict['fc2_bn_uv.bias'] = pretrained_dict_uv['fc2_bn.bias']
+        # model_fusion_dict['fc2_bn_uv.running_mean'] = pretrained_dict_uv['fc2_bn.running_mean']
+        # model_fusion_dict['fc2_bn_uv.running_var'] = pretrained_dict_uv['fc2_bn.running_var']
 
-        model_fusion_dict['fc3_uv.weight'] = pretrained_dict_uv['fc3.weight']
-        model_fusion_dict['fc3_uv.bias'] = pretrained_dict_uv['fc3.bias']
-        model_fusion_dict['fc3_bn_uv.weight'] = pretrained_dict_uv['fc3_bn.weight']
-        model_fusion_dict['fc3_bn_uv.bias'] = pretrained_dict_uv['fc3_bn.bias']
-        model_fusion_dict['fc3_bn_uv.running_mean'] = pretrained_dict_uv['fc3_bn.running_mean']
-        model_fusion_dict['fc3_bn_uv.running_var'] = pretrained_dict_uv['fc3_bn.running_var']
+        # model_fusion_dict['fc3_uv.weight'] = pretrained_dict_uv['fc3.weight']
+        # model_fusion_dict['fc3_uv.bias'] = pretrained_dict_uv['fc3.bias']
+        # model_fusion_dict['fc3_bn_uv.weight'] = pretrained_dict_uv['fc3_bn.weight']
+        # model_fusion_dict['fc3_bn_uv.bias'] = pretrained_dict_uv['fc3_bn.bias']
+        # model_fusion_dict['fc3_bn_uv.running_mean'] = pretrained_dict_uv['fc3_bn.running_mean']
+        # model_fusion_dict['fc3_bn_uv.running_var'] = pretrained_dict_uv['fc3_bn.running_var']
 
         # Imports for Z model
 
@@ -380,24 +389,24 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         model_fusion_dict['fc1_bn_z.running_mean'] = pretrained_dict_z['fc1_bn.running_mean']
         model_fusion_dict['fc1_bn_z.running_var'] = pretrained_dict_z['fc1_bn.running_var']
 
-        model_fusion_dict['fc2_z.weight'] = pretrained_dict_z['fc2.weight']
-        model_fusion_dict['fc2_z.bias'] = pretrained_dict_z['fc2.bias']
-        model_fusion_dict['fc2_bn_z.weight'] = pretrained_dict_z['fc2_bn.weight']
-        model_fusion_dict['fc2_bn_z.bias'] = pretrained_dict_z['fc2_bn.bias']
-        model_fusion_dict['fc2_bn_z.running_mean'] = pretrained_dict_z['fc2_bn.running_mean']
-        model_fusion_dict['fc2_bn_z.running_var'] = pretrained_dict_z['fc2_bn.running_var']
+        # model_fusion_dict['fc2_z.weight'] = pretrained_dict_z['fc2.weight']
+        # model_fusion_dict['fc2_z.bias'] = pretrained_dict_z['fc2.bias']
+        # model_fusion_dict['fc2_bn_z.weight'] = pretrained_dict_z['fc2_bn.weight']
+        # model_fusion_dict['fc2_bn_z.bias'] = pretrained_dict_z['fc2_bn.bias']
+        # model_fusion_dict['fc2_bn_z.running_mean'] = pretrained_dict_z['fc2_bn.running_mean']
+        # model_fusion_dict['fc2_bn_z.running_var'] = pretrained_dict_z['fc2_bn.running_var']
 
-        model_fusion_dict['fc3_z.weight'] = pretrained_dict_z['fc3.weight']
-        model_fusion_dict['fc3_z.bias'] = pretrained_dict_z['fc3.bias']
-        model_fusion_dict['fc3_bn_z.weight'] = pretrained_dict_z['fc3_bn.weight']
-        model_fusion_dict['fc3_bn_z.bias'] = pretrained_dict_z['fc3_bn.bias']
-        model_fusion_dict['fc3_bn_z.running_mean'] = pretrained_dict_z['fc3_bn.running_mean']
-        model_fusion_dict['fc3_bn_z.running_var'] = pretrained_dict_z['fc3_bn.running_var']
+        # model_fusion_dict['fc3_z.weight'] = pretrained_dict_z['fc3.weight']
+        # model_fusion_dict['fc3_z.bias'] = pretrained_dict_z['fc3.bias']
+        # model_fusion_dict['fc3_bn_z.weight'] = pretrained_dict_z['fc3_bn.weight']
+        # model_fusion_dict['fc3_bn_z.bias'] = pretrained_dict_z['fc3_bn.bias']
+        # model_fusion_dict['fc3_bn_z.running_mean'] = pretrained_dict_z['fc3_bn.running_mean']
+        # model_fusion_dict['fc3_bn_z.running_var'] = pretrained_dict_z['fc3_bn.running_var']
 
         # For the meta model
 
-        model_fusion_dict['fc1_meta.weight'] = pretrained_dict_meta['fc1.weight']
-        model_fusion_dict['fc1_meta.bias'] = pretrained_dict_meta['fc1.bias']
+        # model_fusion_dict['fc1_meta.weight'] = pretrained_dict_meta['fc1.weight']
+        # model_fusion_dict['fc1_meta.bias'] = pretrained_dict_meta['fc1.bias']
 
         """
         Taken directly from Fussion_CNN_hurricanes
@@ -412,17 +421,22 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         num_params = 0
         for param in model_fusion.parameters():
             num_params += 1
-        num_unfreezed_params = len(('fc5.weight', 'fc6.weight', 'fc7.weight', 'fc5.bias',
-                                    'fc6.bias', 'fc7.bias'))
+        unfreeze_params = [model_fusion_dict['fc1.weight'], model_fusion_dict['fc2.weight'], model_fusion_dict['fc3.weight'],
+                            model_fusion_dict['fc4.weight'], model_fusion_dict['fc5.weight'], model_fusion_dict['fc1.bias'],
+                            model_fusion_dict['fc2.bias'], model_fusion_dict['fc3.bias'], model_fusion_dict['fc4.bias'],
+                            model_fusion_dict['fc5.bias']]
+        
+        
+
         for counter, param in enumerate(model_fusion.parameters()):
-            # This here is some dodgy code
-            if param.size() == model_fusion_dict['fc2_meta.weight'].size() or param.size() == model_fusion_dict['fc2_meta.bias'].size():
-                if (not (False in torch.eq(model_fusion_dict['fc2_meta.weight'], param))) or (not (False in torch.eq(model_fusion_dict['fc2_meta.bias'], param))):
-                    # print("hit")
-                    param.requires_grad = True
-            if counter >= num_params-num_unfreezed_params:
-                param.requires_grad = True
-            else:
+            found_param = False
+            for unfreeze_param in unfreeze_params:
+                if param.size() == unfreeze_param.size():
+                    if param.equal(unfreeze_param):
+                        param.requires_grad = True
+                        found_param = True
+
+            if not found_param:
                 param.requires_grad = False
         
         optimizer_dict = {}
@@ -685,13 +699,61 @@ def test_model(test_dataset, model_name):
         
         return (avg_tloss/world_size)
 
+def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json):
+
+    if ('model_fusion_scratch' in os.listdir(models_dir)):
+        state = torch.load(f'{models_dir}/model_fusion_scratch')
+        
+        model_fusion = Fusion_Model(feature_pred=True)
+            
+        state_dict = state['state_dict']
+
+        model_dict = OrderedDict()
+        pattern = re.compile('module.')
+        for k,v in state_dict.items():
+            if re.search("module", k):
+                model_dict[re.sub(pattern, '', k)] = v
+            else:
+                model_dict = state_dict
+        model_fusion.load_state_dict(model_dict)
+    
+    model_fusion = model_fusion.to(0)
+
+    feature_array = np.zeros((len(cyclone_dataset), 1167))
+
+    j = 0
+
+    for cyclone in tqdm(cyclone_json):
+        examples, labels = get_examples_and_labels(cyclone, include_time=True)
+
+        for i in range(0, len(examples)):
+            pred = model_fusion.forward(examples[i]).detach().numpy()
+
+            feature_array[j] = pred.numpy()
+
+            label, time = labels[i][0].detach().numpy(), labels[i][1]
+
+            data = {f'{cyclone}-{time}':{
+                    'label':label,
+                    'time':time
+                    }}
+
+            append_to_json(label_json, data)
+
+            j += 1
+
+    np.save(f'{feature_dir}/feature-array.npy', feature_array)
+
 
 if __name__ == '__main__':
+    splits = {'train':0.8, 'validate':0.1, 'test':0.1}
     train_dataset_uv, validate_dataset_uv, test_dataset_uv, train_dataset_z, validate_dataset_z, test_dataset_z, train_dataset_meta, validate_dataset_meta, \
-    test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds = load_datasets()            
+    test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds = load_datasets(splits)            
     
-    print("Training fusion model")
+    print("Trying feature extraction")
     #train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
-    train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)
+    # train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)
+
+    generate_feature_dataset(train_json, train_concat_ds, label_json)
 
     # Want to test 2014253N13260
