@@ -118,7 +118,7 @@ def all_available_tracks(data_local='/g/data/x77/ob2720/cyclone_binaries', write
                 current_minute = (np.datetime64(iso_time)).astype(object).minute
                 if current_minute != 0:
                     # print(f"Has wrong time {sid}")
-                    break
+                    continue
             else:
                 data = {sid:tracks_dict[sid]}
                 append_to_json(write_file, data)

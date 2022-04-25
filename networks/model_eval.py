@@ -31,6 +31,11 @@ models_dir = '/g/data/x77/jm0124/models'
 
 test_path = '/home/156/jm0124/dl-cyclones/tracks/test.json'
 
+one_hot_path = str(Path(__file__).parent.parent / 'tracks' / 'one_hot_dict.json')
+
+with open(one_hot_path, 'r') as oht:
+    one_hot_dict = json.load(oht)
+
 with open(test_path, 'r') as test_json:
     test_dict = json.load(test_json)
 
@@ -157,7 +162,7 @@ def eval_on_cyclone(cyclone_id, model):
     plt.savefig(f'images/world-{cyclone_id}-{mse}.jpg', dpi=800)
     
 
-def get_examples_and_labels(cyclone):
+def get_examples_and_labels(cyclone, include_time=False, fusion=False):
     time_step_back = 1
 
     j = 2
@@ -168,16 +173,19 @@ def get_examples_and_labels(cyclone):
 
     data = test_dict[cyclone]
 
-    target_parameters = [0,1]
+    target_parameters = [0,1,2]
 
     for coordinate in data['coordinates'][:-bound]:
         cyclone_ds = xarray.open_dataset(data_dir+cyclone)
         cyclone_ds_new = cyclone_ds[dict(time=list(range(j-time_step_back-1,j)))]
         
-        if target_parameters == [0,1]:
-            cyclone_ds_new = cyclone_ds_new[['u','v']]
-        elif target_parameters == [2]:
-            cyclone_ds_new = cyclone_ds_new[['z']]
+        # if target_parameters == [0,1]:
+        #     cyclone_ds_new = cyclone_ds_new[['u','v']]
+        # elif target_parameters == [2]:
+        #     cyclone_ds_new = cyclone_ds_new[['z']]
+        
+        if target_parameters == [0,1,2]:
+            cyclone_ds_new = cyclone_ds_new[['u','v','z']]
         
         cyclone_ds_crop_new = cyclone_ds_new.to_array().to_numpy()
         cyclone_ds_crop_new = np.transpose(cyclone_ds_crop_new, (1, 0, 2, 3, 4))
@@ -187,16 +195,41 @@ def get_examples_and_labels(cyclone):
 
         example = torch.reshape(example, (1,num_channels,160,160))
 
-        label = torch.from_numpy(np.array([[
+        if fusion:
+            sub_basin_encoding = np.zeros((9,1))
+            sub_basin_encoding[one_hot_dict[data['subbasin'][j-1]]] = 1
+
+            meta_example = torch.from_numpy(np.array([
+                float(data['categories'][j-2]),
+                float(data['categories'][j-1]),
+                float(data['coordinates'][j-2][0]),
+                float(data['coordinates'][j-2][1]),
+                float(data['coordinates'][j-1][0]),
+                float(data['coordinates'][j-1][1])
+            ]))
+
+            # Size is now 6 + 9 = 15
+            meta_example = np.append(meta_example, sub_basin_encoding)
+
+        example = example.to(0)
+
+        meta_example = torch.from_numpy(meta_example).to(0)
+        meta_example = torch.reshape(meta_example, (1,meta_example.size()[0]))
+
+        example = (example, meta_example)
+
+        if include_time:
+            label = (torch.from_numpy(np.array([[
                                     float(data['coordinates'][j-1][0]), float(data['coordinates'][j+bound-2][0])], 
                                     [float(data['coordinates'][j-1][1]), float(data['coordinates'][j+bound-2][1])],
                                     [float(data['categories'][j-1]), float(data['categories'][j])]
-                                            ]))
-        
-        if torch.isnan(example).any():
-            print(f"Example size is: {example.size()}")
-            print(f"Cyclone: {cyclone}")
-            print(f"Coordinate: {coordinate}")
+                                            ])), j)
+        else:
+            label = torch.from_numpy(np.array([[
+                                        float(data['coordinates'][j-1][0]), float(data['coordinates'][j+bound-2][0])], 
+                                        [float(data['coordinates'][j-1][1]), float(data['coordinates'][j+bound-2][1])],
+                                        [float(data['categories'][j-1]), float(data['categories'][j])]
+                                                ]))
         
         examples.append(example)
         labels.append(label)

@@ -175,7 +175,7 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
                 nprocs=world_size
             )
         
-    if True: #'model_meta-0.004831329930796832' in os.listdir(models_dir):
+    if False: #'model_meta-0.004831329930796832' in os.listdir(models_dir):
         EPOCHS = 35
         print("model_meta")
 #         state = torch.load(f'{models_dir}/model_meta-0.004831329930796832')
@@ -716,23 +716,33 @@ def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json):
         model_fusion.load_state_dict(model_dict)
     
     model_fusion = model_fusion.to(0)
+    model_fusion.feature_pred = True
+
+    model_fusion.eval()
 
     feature_array = np.zeros((len(cyclone_dataset), 1167))
 
     j = 0
 
-    for cyclone in tqdm(cyclone_json):
-        examples, labels = get_examples_and_labels(cyclone, include_time=True)
+    with open(cyclone_json, 'r') as cj:
+        cyclone_dict = json.load(cj)
+
+    for cyclone in tqdm(cyclone_dict):
+        examples, labels = get_examples_and_labels(f"{cyclone}.nc", include_time=True, fusion=True)
 
         for i in range(0, len(examples)):
-            pred = model_fusion.forward(examples[i]).detach().numpy()
+            # examples[i] = examples[i].to(0)
+            pred = model_fusion.forward(examples[i])
+            pred = pred.cpu().detach().numpy()
 
-            feature_array[j] = pred.numpy()
+            feature_array[j] = pred
+
+            print(pred)
 
             label, time = labels[i][0].detach().numpy(), labels[i][1]
 
             data = {f'{cyclone}-{time}':{
-                    'label':label,
+                    'label':label.tolist(),
                     'time':time,
                     'index':j
                     }}
@@ -751,7 +761,7 @@ if __name__ == '__main__':
     
     print("Trying feature extraction")
     #train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
-    # train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)
+    train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)
 
     generate_feature_dataset(train_json, train_concat_ds, label_json)
 

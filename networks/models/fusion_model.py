@@ -110,6 +110,9 @@ class Fusion_Model(nn.Module):
 
         x = torch.cat((x1,x2, meta_example.float()), dim=1)
 
+        if self.feature_pred:
+            return x
+
         x = F.relu(self.fc1_bn(self.fc1(x)))
         x = F.relu(self.fc2_bn(self.fc2(x)))
         x = F.relu(self.fc3_bn(self.fc3(x)))
