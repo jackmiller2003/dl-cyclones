@@ -16,6 +16,14 @@ train_json_path = '/g/data/x77/ob2720/partition/train.json'
 valid_json_path = '/g/data/x77/ob2720/partition/valid.json'
 test_json_path = '/g/data/x77/ob2720/partition/test.json'
 
+with open(train_json_path, 'r') as tj:
+    train_dict = json.load(tj)
+
+with open(valid_json_path, 'r') as vj:
+    val_dict = json.load(vj)
+
+with open(test_json_path, 'r') as tj:
+    test_dict = json.load(tj)
 
 with open(tracks_path, 'r') as ptj:
     tracks_dict = json.load(ptj)
@@ -30,9 +38,11 @@ class ConcatDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, i):
         return_list = []
+        examples = []
         for dataset in self.datasets:
-            return_list.append(dataset[i])
-        return return_list
+            example, label = dataset[i]
+            examples.append(example)
+        return examples, label
 
     def __len__(self):
         return min(len(d) for d in self.datasets)
@@ -80,7 +90,7 @@ class CycloneDataset(Dataset):
                 for coordinate in data['coordinates'][:-bound]:
                     if i == idx:
                         
-                        cyclone_ds = xarray.open_dataset(self.cyclone_dir+cyclone)                    
+                        cyclone_ds = xarray.open_dataset(self.cyclone_dir+cyclone+".nc", engine='netcdf4')                    
                         cyclone_ds_new = cyclone_ds[dict(time=list(range(j-self.time_step_back-1,j)))]
                         
                         if self.target_parameters == [0,1]:
@@ -204,21 +214,21 @@ def load_json(fname):
         return json.load(f)
 
 def load_datasets():
-    train_dataset_uv = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/train/', target_parameters=[0,1])
-    valid_dataset_uv = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/valid/', target_parameters=[0,1])
-    test_dataset_uv  = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/test/',  target_parameters=[0,1])
+    train_dataset_uv = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/train/', tracks_used=train_dict, target_parameters=[0,1])
+    valid_dataset_uv = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/valid/', tracks_used=val_dict, target_parameters=[0,1])
+    test_dataset_uv  = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/test/',  tracks_used=test_dict, target_parameters=[0,1])
 
-    train_dataset_z = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/train/', target_parameters=[2])
-    valid_dataset_z = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/valid/', target_parameters=[2])
-    test_dataset_z  = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/test/',  target_parameters=[2])
+    train_dataset_z = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/train/', tracks_used=train_dict, target_parameters=[2])
+    valid_dataset_z = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/valid/', tracks_used=val_dict, target_parameters=[2])
+    test_dataset_z  = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/test/',  tracks_used=test_dict, target_parameters=[2])
 
     train_dataset_meta = MetaDataset(tracks_used=load_json('/g/data/x77/ob2720/partition/train.json'))
     valid_dataset_meta = MetaDataset(tracks_used=load_json('/g/data/x77/ob2720/partition/valid.json'))
     test_dataset_meta  = MetaDataset(tracks_used=load_json('/g/data/x77/ob2720/partition/test.json'))
 
-    train_dataset_uvz = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/train/', target_parameters=[0,1,2])
-    valid_dataset_uvz = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/valid/', target_parameters=[0,1,2])
-    test_dataset_uvz  = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/test/',  target_parameters=[0,1,2])
+    train_dataset_uvz = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/train/', tracks_used=train_dict, target_parameters=[0,1,2])
+    valid_dataset_uvz = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/valid/', tracks_used=val_dict, target_parameters=[0,1,2])
+    test_dataset_uvz  = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/test/',  tracks_used=test_dict, target_parameters=[0,1,2])
 
     train_concat_ds = ConcatDataset(train_dataset_uvz, train_dataset_meta)
     valid_concat_ds = ConcatDataset(valid_dataset_uvz, valid_dataset_meta)
