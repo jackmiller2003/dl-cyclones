@@ -424,9 +424,7 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         unfreeze_params = [model_fusion_dict['fc1.weight'], model_fusion_dict['fc2.weight'], model_fusion_dict['fc3.weight'],
                             model_fusion_dict['fc4.weight'], model_fusion_dict['fc5.weight'], model_fusion_dict['fc1.bias'],
                             model_fusion_dict['fc2.bias'], model_fusion_dict['fc3.bias'], model_fusion_dict['fc4.bias'],
-                            model_fusion_dict['fc5.bias']]
-        
-        
+                            model_fusion_dict['fc5.bias']]        
 
         for counter, param in enumerate(model_fusion.parameters()):
             found_param = False
@@ -735,7 +733,8 @@ def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json):
 
             data = {f'{cyclone}-{time}':{
                     'label':label,
-                    'time':time
+                    'time':time,
+                    'index':j
                     }}
 
             append_to_json(label_json, data)
@@ -748,7 +747,7 @@ def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json):
 if __name__ == '__main__':
     splits = {'train':0.8, 'validate':0.1, 'test':0.1}
     train_dataset_uv, validate_dataset_uv, test_dataset_uv, train_dataset_z, validate_dataset_z, test_dataset_z, train_dataset_meta, validate_dataset_meta, \
-    test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds = load_datasets(splits)            
+    test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds = load_datasets()            
     
     print("Trying feature extraction")
     #train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
