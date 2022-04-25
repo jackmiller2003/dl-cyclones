@@ -7,20 +7,21 @@ import numpy as np
 import json
 import matplotlib.pyplot as plt
 import xarray
+from pathlib import Path
 
-tracks_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'tracks/available.json')
-test_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'tracks/test.json')
-one_hot_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'tracks/one_hot_dict.json')
+tracks_path = str(Path(__file__).parent.parent.parent / 'tracks' / 'available.json')
+one_hot_path = str(Path(__file__).parent.parent.parent / 'tracks' / 'one_hot_dict.json')
+
+train_json_path = '/g/data/x77/ob2720/partition/train.json'
+valid_json_path = '/g/data/x77/ob2720/partition/valid.json'
+test_json_path = '/g/data/x77/ob2720/partition/test.json'
+
 
 with open(tracks_path, 'r') as ptj:
     tracks_dict = json.load(ptj)
 
 with open(one_hot_path, 'r') as oht:
     one_hot_dict = json.load(oht)
-
-# with open(test_path, 'r') as test_json:
-#     test_dict = json.load(test_json)
-
 
 # Taken from https://discuss.pytorch.org/t/train-simultaneously-on-two-datasets/649
 class ConcatDataset(torch.utils.data.Dataset):
@@ -39,8 +40,6 @@ class ConcatDataset(torch.utils.data.Dataset):
 class CycloneDataset(Dataset):
     """
     Custom dataset for cyclones.
-
-    TODO: Need to test
     """
 
     def __init__(self, cyclone_dir, transform=None, target_transform=None, target_parameters=[0,1], time_step_back=1, day_pred=True, tracks_used = tracks_dict):
@@ -199,55 +198,36 @@ class MetaDataset(Dataset):
                     i += 1
                     j += 1
 
+def load_json(fname):
+    import json
+    with open(fname, 'r') as f:
+        return json.load(f)
 
-def load_datasets(splits: dict):
-    
-    full_dataset_uv = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/cyclone_binaries/')
-    full_length = len(full_dataset_uv)
-    train_length = int(splits['train']*full_length)
-    val_length = int(splits['validate']*full_length)
-    test_length = full_length - train_length - val_length
-    
-    torch.manual_seed(0)
-    train_dataset_uv, validate_dataset_uv, test_dataset_uv = torch.utils.data.random_split(full_dataset_uv, 
-        [train_length, val_length, test_length], generator=torch.Generator().manual_seed(0))
-    torch.manual_seed(torch.initial_seed())
+def load_datasets():
+    train_dataset_uv = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/train/', target_parameters=[0,1])
+    valid_dataset_uv = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/valid/', target_parameters=[0,1])
+    test_dataset_uv  = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/test/',  target_parameters=[0,1])
 
-    full_dataset_z = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/cyclone_binaries/', target_parameters=[2])
+    train_dataset_z = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/train/', target_parameters=[2])
+    valid_dataset_z = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/valid/', target_parameters=[2])
+    test_dataset_z  = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/test/',  target_parameters=[2])
 
-    torch.manual_seed(0)
-    train_dataset_z, validate_dataset_z, test_dataset_z = torch.utils.data.random_split(full_dataset_z, 
-        [train_length, val_length, test_length], generator=torch.Generator().manual_seed(0))
-    torch.manual_seed(torch.initial_seed())
+    train_dataset_meta = MetaDataset(tracks_used=load_json('/g/data/x77/ob2720/partition/train.json'))
+    valid_dataset_meta = MetaDataset(tracks_used=load_json('/g/data/x77/ob2720/partition/valid.json'))
+    test_dataset_meta  = MetaDataset(tracks_used=load_json('/g/data/x77/ob2720/partition/test.json'))
 
-    full_dataset_meta = MetaDataset()
-    meta_length = len(full_dataset_meta)
+    train_dataset_uvz = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/train/', target_parameters=[0,1,2])
+    valid_dataset_uvz = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/valid/', target_parameters=[0,1,2])
+    test_dataset_uvz  = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/partition/test/',  target_parameters=[0,1,2])
 
-    # if full_length != meta_length:
-    #     raise Exception('Something is wrong with the meta length!')
-    
-    torch.manual_seed(0)
-    train_dataset_meta, validate_dataset_meta, test_dataset_meta = torch.utils.data.random_split(full_dataset_meta, 
-        [train_length, val_length, test_length], generator=torch.Generator().manual_seed(0))
-    torch.manual_seed(torch.initial_seed())
+    train_concat_ds = ConcatDataset(train_dataset_uvz, train_dataset_meta)
+    valid_concat_ds = ConcatDataset(valid_dataset_uvz, valid_dataset_meta)
+    test_concat_ds =  ConcatDataset(test_dataset_uvz,  test_dataset_meta)
 
-    full_dataset_uvz = CycloneDataset(cyclone_dir='/g/data/x77/ob2720/cyclone_binaries/', target_parameters=[0,1,2])
-    full_concat_ds = ConcatDataset(full_dataset_uvz, full_dataset_meta)
-
-    torch.manual_seed(0)
-    train_concat_ds, validate_concat_ds, test_concat_ds= torch.utils.data.random_split(full_concat_ds, 
-    [train_length, val_length, test_length], generator=torch.Generator().manual_seed(0))
-    torch.manual_seed(torch.initial_seed())
-
-    return train_dataset_uv, validate_dataset_uv, test_dataset_uv, train_dataset_z, validate_dataset_z, test_dataset_z, train_dataset_meta, validate_dataset_meta, \
-            test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds
-
-
-def load_holdout_test():
-    holdout_test_dataset_uv = CycloneDataset(cyclone_dir='/g/data/x77/jm0124/test_holdout/', tracks_used=test_dict)
-    holdout_test_dataset_z = CycloneDataset(cyclone_dir='/g/data/x77/jm0124/test_holdout/', target_parameters=[2], tracks_used=test_dict)
-    holdout_test_dataset_meta = CycloneDataset(tracks_used=test_dict)
-    
+    return train_dataset_uv,   valid_dataset_uv,   test_dataset_uv, \
+           train_dataset_z,    valid_dataset_z,    test_dataset_z, \
+           train_dataset_meta, valid_dataset_meta, test_dataset_meta, \
+           train_concat_ds,    valid_concat_ds,    test_concat_ds
 
 def get_first_example():
     # Display image and label.

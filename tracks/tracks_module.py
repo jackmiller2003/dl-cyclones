@@ -7,9 +7,10 @@ from utilities import *
 from tqdm import tqdm
 import numpy as np
 import xarray
+from pathlib import Path
 
-with open('proc_tracks.json', 'r+') as pt:
-    cyclone_dict = json.load(pt)
+with open(str(Path(__file__).parent.resolve() / 'proc_tracks.json'), 'r+') as pt:
+    tracks_dict = json.load(pt)
 
 @dataclass_json
 @dataclass
@@ -51,7 +52,7 @@ class Track:
 
     @classmethod
     def from_sid(cls, sid):
-        self = cls.from_dict(cyclone_dict[sid])
+        self = cls.from_dict(tracks_dict[sid])
         self.sid = sid
         return self
 
@@ -90,7 +91,7 @@ def save_all_storms(file_name, save_to_file='tracks.json', year_init=1979):
                 continue
 
 def convert_lat_lon(tracks_file='tracks.json', proc_tracks_file='proc_tracks.json'):
-    with open('tracks.json', 'r') as tracks_json:
+    with open(tracks_file, 'r') as tracks_json:
         tracks_dict = json.load(tracks_json)
     
     for sid, data in tqdm(tracks_dict.items()):
@@ -102,39 +103,27 @@ def convert_lat_lon(tracks_file='tracks.json', proc_tracks_file='proc_tracks.jso
         new_dict['coordinates'] = new_coords
         add_to_json(sid, new_dict, proc_tracks_file)
 
-def all_available_tracks(tracks_file='proc_tracks.json', data_local='/g/data/x77/ob2720/cyclone_binaries', write_file='test.json', test_set_flag=False):
-    with open(tracks_file, 'r') as tracks_json:
-        tracks_dict = json.load(tracks_json)
-    
-    cyclones_saved = os.listdir(data_local)
-    
+def all_available_tracks(data_local='/g/data/x77/ob2720/cyclone_binaries', write_file='test.json'):
+    data_local = Path(data_local)
+    cyclones_saved = [str(fname.name)[:-3] for fname in data_local.iterdir()]
+
     for sid in tqdm(cyclones_saved):
-        if sid == 'old':
-            continue
-        ds = xarray.open_mfdataset(data_local+"/"+sid, engine='netcdf4')
+        ds = xarray.open_mfdataset(str(data_local / (sid + '.nc')), engine='netcdf4')
         cyclone_array = ds.to_array()
         if np.isnan(cyclone_array.to_numpy()).any():
             print(f"Has nan: {sid}")
             continue
-        if sid[:-3] in tracks_dict:
-            previous_month = np.datetime64(tracks_dict[sid[:-3]]['iso_times'][0]).astype(object).month
-            for iso_time in tracks_dict[sid[:-3]]['iso_times']:
-                current_month = (np.datetime64(iso_time)).astype(object).month
+        if sid in tracks_dict:
+            for iso_time in tracks_dict[sid]['iso_times']:
                 current_minute = (np.datetime64(iso_time)).astype(object).minute
-                previous_month = (np.datetime64(iso_time)).astype(object).month
-
                 if current_minute != 0:
                     # print(f"Has wrong time {sid}")
                     break
             else:
-                data = {sid:tracks_dict[sid[:-3]]}
-                # append_to_json('available.json', data)    
+                data = {sid:tracks_dict[sid]}
                 append_to_json(write_file, data)
 
-def get_generate_sub_one_hot():
-    with open('proc_tracks.json', 'r') as tracks_json:
-        tracks_dict = json.load(tracks_json)
-    
+def get_generate_sub_one_hot():    
     one_hot_dict = {}
 
     i = 0
@@ -156,4 +145,5 @@ def get_generate_sub_one_hot():
 
 if __name__ == '__main__':
     # save_all_storms('ibtracs.ALL.list.v04r00.csv', save_to_file="tracks.json", year_init=1979)
-    all_avaliable_tracks(tracks_file='proc_tracks.json', data_local='/g/data/x77/jm0124/test_holdout', test_set_flag=True)
+    # all_available_tracks(tracks_file='proc_tracks.json', data_local='/g/data/x77/jm0124/test_holdout', test_set_flag=True)
+    pass

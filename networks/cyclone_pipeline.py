@@ -687,9 +687,8 @@ def test_model(test_dataset, model_name):
 
 
 if __name__ == '__main__':
-    splits = {'train':0.8, 'validate':0.1, 'test':0.1}
     train_dataset_uv, validate_dataset_uv, test_dataset_uv, train_dataset_z, validate_dataset_z, test_dataset_z, train_dataset_meta, validate_dataset_meta, \
-    test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds = load_datasets(splits)            
+    test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds = load_datasets()            
     
     print("Training fusion model")
     #train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
