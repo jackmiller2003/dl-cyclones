@@ -764,7 +764,7 @@ if __name__ == '__main__':
     test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds = load_datasets()            
     
     print("Trying single model training")
-    train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
+    # train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
     # train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)
 
     generate_feature_dataset(train_json, train_concat_ds, train_feature_label_json, "train")
