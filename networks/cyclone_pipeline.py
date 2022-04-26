@@ -21,9 +21,13 @@ from utilities import *
 data_dir = '/g/data/x77/ob2720/cyclone_binaries/'
 models_dir = '/g/data/x77/jm0124/models'
 feature_dir = '/g/data/x77/jm0124/feature_vectors'
-label_json = '/home/156/jm0124/dl-cyclones/tracks/feature_labels.json'
+train_feature_label_json = '/g/data/x77/jm0124/feature_vectors/train_feature_labels.json'
+val_feature_label_json = '/g/data/x77/jm0124/feature_vectors/val_feature_labels.json'
+test_feature_label_json = '/g/data/x77/jm0124/feature_vectors/test_feature_labels.json'
 train_dir = '/g/data/x77/ob2720/partition/train'
 train_json = '/g/data/x77/ob2720/partition/train.json'
+val_json = '/g/data/x77/ob2720/partition/valid.json'
+test_json = '/g/data/x77/ob2720/partition/test.json'
 
 with open(train_json, 'r') as tj:
     train_dict = json.load(tj)
@@ -51,11 +55,11 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
     model_z = Z_Model()
     model_meta = Meta_Model()
 
-    if False:#'model_uv-0.0038049714482137156' in os.listdir(models_dir):
-        EPOCHS = 10
+    if True:#'model_uv-0.0038049714482137156' in os.listdir(models_dir):
+        EPOCHS = 1
 
         if True:
-            state = torch.load(f'{models_dir}/model_uv-64.7119321766501')            
+            state = torch.load(f'{models_dir}/model_uv_scratch')            
             state_dict = state['state_dict']
             optimizer_dict = state['optimizer']
             
@@ -115,11 +119,11 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
                 nprocs=world_size
             )
 
-    if False:
-        EPOCHS = 10
+    if True:
+        EPOCHS = 1
         print("model_z")
-        if False:
-            state = torch.load(f'{models_dir}/model_z-130.15425896357115')
+        if True:
+            state = torch.load(f'{models_dir}/model_z_scratch')
 
             state_dict = state['state_dict']
             optimizer_dict = state['optimizer']
@@ -234,7 +238,7 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
                 nprocs=world_size
             )
         
-        return
+    return
         
 
 def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps, weight_decay, reimport=False):
@@ -697,10 +701,10 @@ def test_model(test_dataset, model_name):
         
         return (avg_tloss/world_size)
 
-def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json):
+def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json, partition_name):
 
     if ('model_fusion_scratch' in os.listdir(models_dir)):
-        state = torch.load(f'{models_dir}/model_fusion_scratch')
+        state = torch.load(f'{models_dir}/model_fusion_scratch') # Could change
         
         model_fusion = Fusion_Model(feature_pred=True)
             
@@ -724,11 +728,13 @@ def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json):
 
     j = 0
 
-    with open(cyclone_json, 'r') as cj:
+    with open(train_json, 'r') as cj:
         cyclone_dict = json.load(cj)
+    
+    cyclone_dir = train_dir
 
     for cyclone in tqdm(cyclone_dict):
-        examples, labels = get_examples_and_labels(f"{cyclone}.nc", include_time=True, fusion=True)
+        examples, labels = get_examples_and_labels(cyclone_dir, f"{cyclone}", cyclone_dict, include_time=True, fusion=True)
 
         for i in range(0, len(examples)):
             # examples[i] = examples[i].to(0)
@@ -736,8 +742,6 @@ def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json):
             pred = pred.cpu().detach().numpy()
 
             feature_array[j] = pred
-
-            print(pred)
 
             label, time = labels[i][0].detach().numpy(), labels[i][1]
 
@@ -751,7 +755,7 @@ def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json):
 
             j += 1
 
-    np.save(f'{feature_dir}/feature-array.npy', feature_array)
+    np.save(f'{feature_dir}/feature-array-{partition_name}.npy', feature_array)
 
 
 if __name__ == '__main__':
@@ -759,10 +763,12 @@ if __name__ == '__main__':
     train_dataset_uv, validate_dataset_uv, test_dataset_uv, train_dataset_z, validate_dataset_z, test_dataset_z, train_dataset_meta, validate_dataset_meta, \
     test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds = load_datasets()            
     
-    print("Trying feature extraction")
-    #train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
-    train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)
+    print("Trying single model training")
+    train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
+    # train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)
 
-    generate_feature_dataset(train_json, train_concat_ds, label_json)
+    generate_feature_dataset(train_json, train_concat_ds, train_feature_label_json, "train")
+    generate_feature_dataset(val_json, val_concat_ds, val_feature_label_json, "val")
+    generate_feature_dataset(test_json, test_concat_ds, test_feature_label_json, "test")
 
     # Want to test 2014253N13260

@@ -162,7 +162,7 @@ def eval_on_cyclone(cyclone_id, model):
     plt.savefig(f'images/world-{cyclone_id}-{mse}.jpg', dpi=800)
     
 
-def get_examples_and_labels(cyclone, include_time=False, fusion=False):
+def get_examples_and_labels(cyclone_dir, cyclone, data_dict, include_time=False, fusion=False):
     time_step_back = 1
 
     j = 2
@@ -171,12 +171,13 @@ def get_examples_and_labels(cyclone, include_time=False, fusion=False):
     examples = []
     labels = []
 
-    data = test_dict[cyclone]
+    data = data_dict[cyclone]
 
     target_parameters = [0,1,2]
 
     for coordinate in data['coordinates'][:-bound]:
-        cyclone_ds = xarray.open_dataset(data_dir+cyclone)
+        #'/g/data/x77/ob2720/partition/train'
+        cyclone_ds = xarray.open_dataset(f"{cyclone_dir}/{cyclone}.nc", engine='netcdf4')
         cyclone_ds_new = cyclone_ds[dict(time=list(range(j-time_step_back-1,j)))]
         
         # if target_parameters == [0,1]:
