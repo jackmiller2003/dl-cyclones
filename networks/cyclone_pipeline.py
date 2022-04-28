@@ -56,9 +56,9 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
     model_meta = Meta_Model()
 
     if True:#'model_uv-0.0038049714482137156' in os.listdir(models_dir):
-        EPOCHS = 1
+        EPOCHS = 10
 
-        if True:
+        if False:
             state = torch.load(f'{models_dir}/model_uv_scratch')            
             state_dict = state['state_dict']
             optimizer_dict = state['optimizer']
@@ -120,9 +120,9 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
             )
 
     if True:
-        EPOCHS = 1
+        EPOCHS = 10
         print("model_z")
-        if True:
+        if False:
             state = torch.load(f'{models_dir}/model_z_scratch')
 
             state_dict = state['state_dict']
@@ -764,11 +764,11 @@ if __name__ == '__main__':
     test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds = load_datasets()            
     
     print("Trying single model training")
-    # train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
+    train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
     # train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)
 
-    generate_feature_dataset(train_json, train_concat_ds, train_feature_label_json, "train")
-    generate_feature_dataset(val_json, val_concat_ds, val_feature_label_json, "val")
-    generate_feature_dataset(test_json, test_concat_ds, test_feature_label_json, "test")
+    # generate_feature_dataset(train_json, train_concat_ds, train_feature_label_json, "train")
+    # generate_feature_dataset(val_json, val_concat_ds, val_feature_label_json, "val")
+    # generate_feature_dataset(test_json, test_concat_ds, test_feature_label_json, "test")
 
     # Want to test 2014253N13260

@@ -58,7 +58,7 @@ class CycloneDataset(Dataset):
         self.target_transform = target_transform
         self.time_step_back = time_step_back
         self.target_parameters = target_parameters
-        self.day_predict = day_pred
+        self.day_predict = True
 
         
     # I think this function might be causing issues.
@@ -89,9 +89,12 @@ class CycloneDataset(Dataset):
             if len(data['coordinates']) > bound:
                 for coordinate in data['coordinates'][:-bound]:
                     if i == idx:
-                        
-                        cyclone_ds = xarray.open_dataset(self.cyclone_dir+cyclone+".nc", engine='netcdf4')                    
-                        cyclone_ds_new = cyclone_ds[dict(time=list(range(j-self.time_step_back-1,j)))]
+                        cyclone_ds = xarray.open_dataset(self.cyclone_dir+cyclone+".nc", engine='netcdf4')
+
+                        try:
+                            cyclone_ds_new = cyclone_ds[dict(time=list(range(j-self.time_step_back-1,j)))]
+                        except Exception as e:
+                            raise print(f"{cyclone} {e}")
                         
                         if self.target_parameters == [0,1]:
                             cyclone_ds_new = cyclone_ds_new[['u','v']]
