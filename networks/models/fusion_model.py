@@ -11,52 +11,52 @@ class Fusion_Model(nn.Module):
         self.in_channels = 2*(time_steps_back+1)*pressure_levels
         self.feature_pred = feature_pred
 
-        self.conv1_uv = nn.Conv2d(in_channels=self.in_channels, out_channels=64, kernel_size=3, stride=2, padding=0, groups=1, bias=True)
-        self.conv1_bn_uv = nn.BatchNorm2d(64)
-        self.conv2_uv = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
-        self.conv2_bn_uv = nn.BatchNorm2d(64)
-        self.conv3_uv = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
-        self.conv3_bn_uv = nn.BatchNorm2d(64)
-        self.fc1_uv = nn.Linear(in_features=64*18*18, out_features=576)
-        self.fc1_bn_uv = nn.BatchNorm1d(576)
-        # self.fc2_uv = nn.Linear(in_features=576, out_features=128)
-        # self.fc2_bn_uv = nn.BatchNorm1d(128)
-        # self.fc3_uv = nn.Linear(in_features=128, out_features=64)
-        # self.fc3_bn_uv = nn.BatchNorm1d(64)
-        # self.fc4_uv = nn.Linear(in_features=64, out_features=8)
+        self.dropout = nn.Dropout(0.4)
 
-        self.conv1_z = nn.Conv2d(in_channels=int(self.in_channels/2), out_channels=64, kernel_size=3, stride=2, padding=0, groups=1, bias=True)
-        self.conv1_bn_z = nn.BatchNorm2d(64)
-        self.conv2_z = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
-        self.conv2_bn_z = nn.BatchNorm2d(64)
-        self.conv3_z = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0, groups=1, bias=True)
-        self.conv3_bn_z = nn.BatchNorm2d(64)
+        self.conv0_uv = nn.Conv2d(in_channels=self.in_channels, out_channels=96, kernel_size=11, stride=2, padding=0, groups=1, bias=True)
+        self.conv0_bn_uv = nn.BatchNorm2d(96)
 
-        self.fc1_z = nn.Linear(in_features=64*18*18, out_features=576)
-        self.fc1_bn_z = nn.BatchNorm1d(576)
-        # self.fc2_z = nn.Linear(in_features=576, out_features=128)
-        # self.fc2_bn_z = nn.BatchNorm1d(128)
-        # self.fc3_z = nn.Linear(in_features=128, out_features=64)
-        # self.fc3_bn_z = nn.BatchNorm1d(64)
-        # self.fc4_z = nn.Linear(in_features=64, out_features=8)
+        self.conv1_uv = nn.Conv2d(in_channels=96, out_channels=256, kernel_size=3, stride=1, padding=1, groups=1, bias=True)
+        self.conv1_bn_uv = nn.BatchNorm2d(256)
 
-        # self.meta_in_channels = (time_steps_back+1) * 3 + 9
-        # self.fc1_meta = nn.Linear(in_features=self.meta_in_channels, out_features=5)
-        # self.fc2_meta = nn.Linear(in_features=5, out_features=5)
+        self.conv2_uv = nn.Conv2d(in_channels=256, out_channels=384, kernel_size=3, stride=1, padding=1, groups=1, bias=True)
+        self.conv2_bn_uv = nn.BatchNorm2d(384)
 
-        # self.fc5 = nn.Linear(in_features=8+8+5, out_features=8*2+5)
-        # self.fc6 = nn.Linear(in_features=8*2+5, out_features=9)
-        # self.fc7 = nn.Linear(in_features=9, out_features=3)
+        self.conv3_uv = nn.Conv2d(in_channels=384, out_channels=384, kernel_size=3, stride=1, padding=1, groups=1, bias=True)
+        self.conv3_bn_uv = nn.BatchNorm2d(384)
 
-        self.fc1 = nn.Linear(in_features=(576*2 + (time_steps_back+1) * 3 + 9), out_features=512)
-        self.fc1_bn = nn.BatchNorm1d(512)
-        self.fc2 = nn.Linear(in_features=512, out_features=256)
-        self.fc2_bn = nn.BatchNorm1d(256)
-        self.fc3 = nn.Linear(in_features=256, out_features=64)
-        self.fc3_bn = nn.BatchNorm1d(64)
-        self.fc4 = nn.Linear(in_features=64, out_features=8)
-        self.fc4_bn = nn.BatchNorm1d(8)
-        self.fc5 = nn.Linear(in_features=8, out_features=3)
+        self.conv4_uv = nn.Conv2d(in_channels=384, out_channels=256, kernel_size=3, stride=2, padding=0, groups=1, bias=True)
+        self.conv4_bn_uv = nn.BatchNorm2d(256)
+
+        self.fc1_uv = nn.Linear(in_features=256*4*4, out_features=2048)
+        self.fc1_bn_uv = nn.BatchNorm1d(2048)
+
+
+        self.conv0_z = nn.Conv2d(in_channels=10, out_channels=96, kernel_size=11, stride=2, padding=0, groups=1, bias=True)
+        self.conv0_bn_z = nn.BatchNorm2d(96)
+
+        self.conv1_z = nn.Conv2d(in_channels=96, out_channels=256, kernel_size=3, stride=1, padding=1, groups=1, bias=True)
+        self.conv1_bn_z = nn.BatchNorm2d(256)
+
+        self.conv2_z = nn.Conv2d(in_channels=256, out_channels=384, kernel_size=3, stride=1, padding=1, groups=1, bias=True)
+        self.conv2_bn_z = nn.BatchNorm2d(384)
+
+        self.conv3_z = nn.Conv2d(in_channels=384, out_channels=384, kernel_size=3, stride=1, padding=1, groups=1, bias=True)
+        self.conv3_bn_z = nn.BatchNorm2d(384)
+
+        self.conv4_z = nn.Conv2d(in_channels=384, out_channels=256, kernel_size=3, stride=2, padding=0, groups=1, bias=True)
+        self.conv4_bn_z = nn.BatchNorm2d(256)
+
+        self.fc1_z = nn.Linear(in_features=256*4*4, out_features=2048)
+        self.fc1_bn_z = nn.BatchNorm1d(2048)
+
+        self.fc1 = nn.Linear(in_features=(2048*2 + (time_steps_back+1) * 3 + 9), out_features=4096)
+        self.fc1_bn = nn.BatchNorm1d(4096)
+        self.fc2 = nn.Linear(in_features=4096, out_features=4096)
+        self.fc2_bn = nn.BatchNorm1d(4096)
+        self.fc3 = nn.Linear(in_features=4096, out_features=256)
+        self.fc3_bn = nn.BatchNorm1d(256)
+        self.fc4 = nn.Linear(in_features=256, out_features=3)
 
         self.init_weights()
 
@@ -90,32 +90,38 @@ class Fusion_Model(nn.Module):
         x1 = example[:,list1,:,:]
         x2 = example[:,list2,:,:]
 
+        x1 = F.relu(self.conv0_bn_uv(self.conv0_uv(x1)))
+        x1 = F.max_pool2d(x1, kernel_size=3, stride=2, padding=0)
         x1 = F.relu(self.conv1_bn_uv(self.conv1_uv(x1)))
+        x1 = F.max_pool2d(x1, kernel_size=3, stride=2, padding=0)
         x1 = F.relu(self.conv2_bn_uv(self.conv2_uv(x1)))
-        x1 = F.max_pool2d(x1, kernel_size=2, stride=2, padding=0)
         x1 = F.relu(self.conv3_bn_uv(self.conv3_uv(x1)))
-        x1 = F.max_pool2d(x1, kernel_size=2, stride=2, padding=0)
-        x1 = x1.view(-1, 64*18*18)
-
-        x2 = F.relu(self.conv1_bn_z(self.conv1_z(x2)))
-        x2 = F.relu(self.conv2_bn_z(self.conv2_z(x2)))
-        x2 = F.max_pool2d(x2, kernel_size=2, stride=2, padding=0)
-        x2 = F.relu(self.conv3_bn_z(self.conv3_z(x2)))
-        x2 = F.max_pool2d(x2, kernel_size=2, stride=2, padding=0)
-        x2 = x2.view(-1, 64*18*18)
-
+        x1 = F.relu(self.conv4_bn_uv(self.conv4_uv(x1)))
+        x1 = F.max_pool2d(x1, kernel_size=3, stride=2, padding=1)
+        x1 = x1.view(-1, 256*4*4)
         x1 = F.relu(self.fc1_bn_uv(self.fc1_uv(x1)))
 
+        x2 = F.relu(self.conv0_bn_z(self.conv0_z(x2)))
+        x2 = F.max_pool2d(x2, kernel_size=3, stride=2, padding=0)
+        x2 = F.relu(self.conv1_bn_z(self.conv1_z(x2)))
+        x2 = F.max_pool2d(x2, kernel_size=3, stride=2, padding=0)
+        x2 = F.relu(self.conv2_bn_z(self.conv2_z(x2)))
+        x2 = F.relu(self.conv3_bn_z(self.conv3_z(x2)))
+        x2 = F.relu(self.conv4_bn_z(self.conv4_z(x2)))
+        x2 = F.max_pool2d(x2, kernel_size=3, stride=2, padding=1)
+        x2 = x2.view(-1, 256*4*4)
         x2 = F.relu(self.fc1_bn_z(self.fc1_z(x2)))
 
         x = torch.cat((x1,x2, meta_example.float()), dim=1)
+        x = F.relu(self.fc1_bn(self.fc1(x)))
+        x = self.dropout(x)
 
         if self.feature_pred:
             return x
 
-        x = F.relu(self.fc1_bn(self.fc1(x)))
         x = F.relu(self.fc2_bn(self.fc2(x)))
+        x = self.dropout(x)
         x = F.relu(self.fc3_bn(self.fc3(x)))
-        x = F.relu(self.fc4_bn(self.fc4(x)))
-        x = self.fc5(x)
+        x = self.dropout(x)
+        x = self.fc4(x)
         return x

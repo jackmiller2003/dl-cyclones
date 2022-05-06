@@ -1,4 +1,4 @@
-from utils.loss_functions import L2_Dist_Func_Intensity
+from utils.loss_functions import *
 from utils.data_loader import *
 import torch
 from datetime import datetime
@@ -17,6 +17,9 @@ import re
 import pickle
 from model_eval import *
 from utilities import *
+from torch.utils.tensorboard import SummaryWriter
+from torchsummary import summary
+writer = SummaryWriter()
 
 data_dir = '/g/data/x77/ob2720/cyclone_binaries/'
 models_dir = '/g/data/x77/jm0124/models'
@@ -55,11 +58,15 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
     model_z = Z_Model()
     model_meta = Meta_Model()
 
-    if True:#'model_uv-0.0038049714482137156' in os.listdir(models_dir):
-        EPOCHS = 10
+    weight_decay = 1e-2
 
-        if False:
-            state = torch.load(f'{models_dir}/model_uv_scratch')            
+    if False:#'model_uv-0.0038049714482137156' in os.listdir(models_dir):
+        EPOCHS = 5
+
+        print(summary(model_uv.cuda(), (20,160,160)))
+
+        if True:
+            state = torch.load(f'{models_dir}/model_uv-125.32733644294785')            
             state_dict = state['state_dict']
             optimizer_dict = state['optimizer']
             
@@ -73,7 +80,7 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
             model_uv.load_state_dict(model_dict)
 
         optimizer_params = {
-            'learning_rate':1e-3,
+            'learning_rate':1e-5,
             'betas':betas,
             'eps':eps,
             'weight_decay':weight_decay,
@@ -106,7 +113,7 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
             model_uv.load_state_dict(model_dict)
             
             optimizer_params = {
-                'learning_rate':1e-3,
+                'learning_rate':1e-5,
                 'betas':betas,
                 'eps':eps,
                 'weight_decay':weight_decay,
@@ -120,10 +127,13 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
             )
 
     if True:
-        EPOCHS = 10
+        EPOCHS = 40
         print("model_z")
-        if False:
-            state = torch.load(f'{models_dir}/model_z_scratch')
+
+        print(summary(model_z.cuda(), (10,160,160)))
+        
+        if True:
+            state = torch.load(f'{models_dir}/model_z-177.16688876510597')
 
             state_dict = state['state_dict']
             optimizer_dict = state['optimizer']
@@ -138,7 +148,7 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
             model_z.load_state_dict(model_dict)
 
         optimizer_params = {
-            'learning_rate':1e-5,
+            'learning_rate': 5e-8,
             'betas':betas,
             'eps':eps,
             'weight_decay':weight_decay,
@@ -156,8 +166,6 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
                 nprocs=world_size
             )
             
-            print("Up to here...")
-            
             state = torch.load(f'{models_dir}/model_z_scratch')
             
             state_dict = state['state_dict']
@@ -172,69 +180,18 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
                     model_dict = state_dict
             model_z.load_state_dict(model_dict)
 
-            # This needs to be changed to not call save because it will call it twice.
-            mp.spawn(
-                validate,
-                args=(world_size, val_dataset_z, model_z, optimizer_params, epoch, "model_z"),
-                nprocs=world_size
-            )
-        
-    if False: #'model_meta-0.004831329930796832' in os.listdir(models_dir):
-        EPOCHS = 35
-        print("model_meta")
-#         state = torch.load(f'{models_dir}/model_meta-0.004831329930796832')
-
-#         state_dict = state['state_dict']
-#         optimizer_dict = state['optimizer']
-
-#         model_dict = OrderedDict()
-#         pattern = re.compile('module.')
-#         for k,v in state_dict.items():
-#             if re.search("module", k):
-#                 model_dict[re.sub(pattern, '', k)] = v
-#             else:
-#                 model_dict = state_dict
-#         model_meta.load_state_dict(model_dict)
-
-        optimizer_params = {
-            'learning_rate':2e-3,
+            optimizer_params = {
+            'learning_rate':5e-8,
             'betas':betas,
             'eps':eps,
             'weight_decay':weight_decay,
             'optimizer_dict':{}
-        }
-
-        print("Spawned processes")
-
-        for epoch in range(1,EPOCHS+1):
-
-            world_size = 2
-            mp.spawn(
-                train,
-                args=(world_size, train_dataset_meta, model_meta, optimizer_params, epoch, "model_meta"),
-                nprocs=world_size
-            )
-            
-            print("Up to here...")
-            
-            state = torch.load(f'{models_dir}/model_meta_scratch')
-            
-            state_dict = state['state_dict']
-            optimizer_dict = state['optimizer']
-
-            model_dict = OrderedDict()
-            pattern = re.compile('module.')
-            for k,v in state_dict.items():
-                if re.search("module", k):
-                    model_dict[re.sub(pattern, '', k)] = v
-                else:
-                    model_dict = state_dict
-            model_meta.load_state_dict(model_dict)
+                }
 
             # This needs to be changed to not call save because it will call it twice.
             mp.spawn(
                 validate,
-                args=(world_size, val_dataset_meta, model_meta, optimizer_params, epoch, "model_meta"),
+                args=(world_size, val_dataset_z, model_z, optimizer_params, epoch, "model_z"),
                 nprocs=world_size
             )
         
@@ -253,9 +210,9 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         model_uv = UV_Model()
 
         # Need to specify here the exact models
-        if 'model_uv-64.97959783643554' in os.listdir(models_dir):
+        if 'model_uv-125.32733644294785' in os.listdir(models_dir):
 
-            state = torch.load(f'{models_dir}/model_uv-64.97959783643554')
+            state = torch.load(f'{models_dir}/model_uv-125.32733644294785')
 
             state_dict = state['state_dict']
             optimizer_dict = state['optimizer']
@@ -274,8 +231,8 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         
         model_z = Z_Model()
 
-        if 'model_z-180.81762405105079' in os.listdir(models_dir):
-            state = torch.load(f'{models_dir}/model_z-180.81762405105079')
+        if 'model_z-177.06781681493158' in os.listdir(models_dir):
+            state = torch.load(f'{models_dir}/model_z-177.06781681493158')
 
             state_dict = state['state_dict']
             optimizer_dict = state['optimizer']
@@ -292,34 +249,20 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         
         print("Model z loaded")
 
-        model_meta = Meta_Model()
-
-        if 'model_meta-389.45942573206014' in os.listdir(models_dir):
-            state = torch.load(f'{models_dir}/model_meta-389.45942573206014')
-
-            state_dict = state['state_dict']
-            optimizer_dict = state['optimizer']
-
-            model_dict = OrderedDict()
-            pattern = re.compile('module.')
-            for k,v in state_dict.items():
-                if re.search("module", k):
-                    model_dict[re.sub(pattern, '', k)] = v
-                else:
-                    model_dict = state_dict
-                    
-            model_meta.load_state_dict(model_dict)
-        
-        print("Model meta loaded")
-
         model_fusion = Fusion_Model()
 
         pretrained_dict_uv = model_uv.state_dict()
         pretrained_dict_z = model_z.state_dict()
-        pretrained_dict_meta = model_meta.state_dict()
         model_fusion_dict = model_fusion.state_dict()
 
         # Imports for UV model
+
+        model_fusion_dict['conv0_uv.weight'] = pretrained_dict_uv['conv0.weight']
+        model_fusion_dict['conv0_uv.bias'] = pretrained_dict_uv['conv0.bias']
+        model_fusion_dict['conv0_bn_uv.weight'] = pretrained_dict_uv['conv0_bn.weight']
+        model_fusion_dict['conv0_bn_uv.bias'] = pretrained_dict_uv['conv0_bn.bias']
+        model_fusion_dict['conv0_bn_uv.running_mean'] = pretrained_dict_uv['conv0_bn.running_mean']
+        model_fusion_dict['conv0_bn_uv.running_var'] = pretrained_dict_uv['conv0_bn.running_var']
 
         model_fusion_dict['conv1_uv.weight'] = pretrained_dict_uv['conv1.weight']
         model_fusion_dict['conv1_uv.bias'] = pretrained_dict_uv['conv1.bias']
@@ -342,6 +285,13 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         model_fusion_dict['conv3_bn_uv.running_mean'] = pretrained_dict_uv['conv3_bn.running_mean']
         model_fusion_dict['conv3_bn_uv.running_var'] = pretrained_dict_uv['conv3_bn.running_var']
 
+        model_fusion_dict['conv4_uv.weight'] = pretrained_dict_uv['conv4.weight']
+        model_fusion_dict['conv4_uv.bias'] = pretrained_dict_uv['conv4.bias']
+        model_fusion_dict['conv4_bn_uv.weight'] = pretrained_dict_uv['conv4_bn.weight']
+        model_fusion_dict['conv4_bn_uv.bias'] = pretrained_dict_uv['conv4_bn.bias']
+        model_fusion_dict['conv4_bn_uv.running_mean'] = pretrained_dict_uv['conv4_bn.running_mean']
+        model_fusion_dict['conv4_bn_uv.running_var'] = pretrained_dict_uv['conv4_bn.running_var']
+
         model_fusion_dict['fc1_uv.weight'] = pretrained_dict_uv['fc1.weight']
         model_fusion_dict['fc1_uv.bias'] = pretrained_dict_uv['fc1.bias']
         model_fusion_dict['fc1_bn_uv.weight'] = pretrained_dict_uv['fc1_bn.weight']
@@ -349,21 +299,14 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         model_fusion_dict['fc1_bn_uv.running_mean'] = pretrained_dict_uv['fc1_bn.running_mean']
         model_fusion_dict['fc1_bn_uv.running_var'] = pretrained_dict_uv['fc1_bn.running_var']
 
-        # model_fusion_dict['fc2_uv.weight'] = pretrained_dict_uv['fc2.weight']
-        # model_fusion_dict['fc2_uv.bias'] = pretrained_dict_uv['fc2.bias']
-        # model_fusion_dict['fc2_bn_uv.weight'] = pretrained_dict_uv['fc2_bn.weight']
-        # model_fusion_dict['fc2_bn_uv.bias'] = pretrained_dict_uv['fc2_bn.bias']
-        # model_fusion_dict['fc2_bn_uv.running_mean'] = pretrained_dict_uv['fc2_bn.running_mean']
-        # model_fusion_dict['fc2_bn_uv.running_var'] = pretrained_dict_uv['fc2_bn.running_var']
-
-        # model_fusion_dict['fc3_uv.weight'] = pretrained_dict_uv['fc3.weight']
-        # model_fusion_dict['fc3_uv.bias'] = pretrained_dict_uv['fc3.bias']
-        # model_fusion_dict['fc3_bn_uv.weight'] = pretrained_dict_uv['fc3_bn.weight']
-        # model_fusion_dict['fc3_bn_uv.bias'] = pretrained_dict_uv['fc3_bn.bias']
-        # model_fusion_dict['fc3_bn_uv.running_mean'] = pretrained_dict_uv['fc3_bn.running_mean']
-        # model_fusion_dict['fc3_bn_uv.running_var'] = pretrained_dict_uv['fc3_bn.running_var']
-
         # Imports for Z model
+
+        model_fusion_dict['conv0_z.weight'] = pretrained_dict_z['conv0.weight']
+        model_fusion_dict['conv0_z.bias'] = pretrained_dict_z['conv0.bias']
+        model_fusion_dict['conv0_bn_z.weight'] = pretrained_dict_z['conv0_bn.weight']
+        model_fusion_dict['conv0_bn_z.bias'] = pretrained_dict_z['conv0_bn.bias']
+        model_fusion_dict['conv0_bn_z.running_mean'] = pretrained_dict_z['conv0_bn.running_mean']
+        model_fusion_dict['conv0_bn_z.running_var'] = pretrained_dict_z['conv0_bn.running_var']
 
         model_fusion_dict['conv1_z.weight'] = pretrained_dict_z['conv1.weight']
         model_fusion_dict['conv1_z.bias'] = pretrained_dict_z['conv1.bias']
@@ -386,31 +329,19 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         model_fusion_dict['conv3_bn_z.running_mean'] = pretrained_dict_z['conv3_bn.running_mean']
         model_fusion_dict['conv3_bn_z.running_var'] = pretrained_dict_z['conv3_bn.running_var']
 
+        model_fusion_dict['conv4_z.weight'] = pretrained_dict_z['conv4.weight']
+        model_fusion_dict['conv4_z.bias'] = pretrained_dict_z['conv4.bias']
+        model_fusion_dict['conv4_bn_z.weight'] = pretrained_dict_z['conv4_bn.weight']
+        model_fusion_dict['conv4_bn_z.bias'] = pretrained_dict_z['conv4_bn.bias']
+        model_fusion_dict['conv4_bn_z.running_mean'] = pretrained_dict_z['conv4_bn.running_mean']
+        model_fusion_dict['conv4_bn_z.running_var'] = pretrained_dict_z['conv4_bn.running_var']
+
         model_fusion_dict['fc1_z.weight'] = pretrained_dict_z['fc1.weight']
         model_fusion_dict['fc1_z.bias'] = pretrained_dict_z['fc1.bias']
         model_fusion_dict['fc1_bn_z.weight'] = pretrained_dict_z['fc1_bn.weight']
         model_fusion_dict['fc1_bn_z.bias'] = pretrained_dict_z['fc1_bn.bias']
         model_fusion_dict['fc1_bn_z.running_mean'] = pretrained_dict_z['fc1_bn.running_mean']
         model_fusion_dict['fc1_bn_z.running_var'] = pretrained_dict_z['fc1_bn.running_var']
-
-        # model_fusion_dict['fc2_z.weight'] = pretrained_dict_z['fc2.weight']
-        # model_fusion_dict['fc2_z.bias'] = pretrained_dict_z['fc2.bias']
-        # model_fusion_dict['fc2_bn_z.weight'] = pretrained_dict_z['fc2_bn.weight']
-        # model_fusion_dict['fc2_bn_z.bias'] = pretrained_dict_z['fc2_bn.bias']
-        # model_fusion_dict['fc2_bn_z.running_mean'] = pretrained_dict_z['fc2_bn.running_mean']
-        # model_fusion_dict['fc2_bn_z.running_var'] = pretrained_dict_z['fc2_bn.running_var']
-
-        # model_fusion_dict['fc3_z.weight'] = pretrained_dict_z['fc3.weight']
-        # model_fusion_dict['fc3_z.bias'] = pretrained_dict_z['fc3.bias']
-        # model_fusion_dict['fc3_bn_z.weight'] = pretrained_dict_z['fc3_bn.weight']
-        # model_fusion_dict['fc3_bn_z.bias'] = pretrained_dict_z['fc3_bn.bias']
-        # model_fusion_dict['fc3_bn_z.running_mean'] = pretrained_dict_z['fc3_bn.running_mean']
-        # model_fusion_dict['fc3_bn_z.running_var'] = pretrained_dict_z['fc3_bn.running_var']
-
-        # For the meta model
-
-        # model_fusion_dict['fc1_meta.weight'] = pretrained_dict_meta['fc1.weight']
-        # model_fusion_dict['fc1_meta.bias'] = pretrained_dict_meta['fc1.bias']
 
         """
         Taken directly from Fussion_CNN_hurricanes
@@ -426,9 +357,10 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         for param in model_fusion.parameters():
             num_params += 1
         unfreeze_params = [model_fusion_dict['fc1.weight'], model_fusion_dict['fc2.weight'], model_fusion_dict['fc3.weight'],
-                            model_fusion_dict['fc4.weight'], model_fusion_dict['fc5.weight'], model_fusion_dict['fc1.bias'],
+                            model_fusion_dict['fc4.weight'], model_fusion_dict['fc1.bias'],
                             model_fusion_dict['fc2.bias'], model_fusion_dict['fc3.bias'], model_fusion_dict['fc4.bias'],
-                            model_fusion_dict['fc5.bias']]        
+                            model_fusion_dict['fc1_bn.weight'], model_fusion_dict['fc2_bn.weight'], model_fusion_dict['fc3_bn.weight'],
+                            model_fusion_dict['fc1_bn.bias'], model_fusion_dict['fc2_bn.bias'], model_fusion_dict['fc3_bn.bias']]        
 
         for counter, param in enumerate(model_fusion.parameters()):
             found_param = False
@@ -444,7 +376,7 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         optimizer_dict = {}
 
         optimizer_params = {
-            'learning_rate':1e-3,
+            'learning_rate':5e-4,
             'betas':betas,
             'eps':eps,
             'weight_decay':weight_decay,
@@ -453,7 +385,7 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
 
         print("Spawned processes")
         
-        EPOCHS = 10
+        EPOCHS = 30
 
         for epoch in range(1,EPOCHS+1):
 
@@ -463,8 +395,6 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
                 args=(world_size, train_concat_ds, model_fusion, optimizer_params, epoch, "model_fusion"),
                 nprocs=world_size
             )
-            
-            print("Up to here...")
             
             state = torch.load(f'{models_dir}/model_fusion_scratch')
             
@@ -481,7 +411,7 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
             model_fusion.load_state_dict(model_dict)
 
             optimizer_params = {
-                'learning_rate':1e-3,
+                'learning_rate':5e-4,
                 'betas':betas,
                 'eps':eps,
                 'weight_decay':weight_decay,
@@ -495,7 +425,7 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
                 nprocs=world_size
             )
 
-def prepare(rank, world_size, dataset, batch_size=64, pin_memory=False, num_workers=8):
+def prepare(rank, world_size, dataset, batch_size=512, pin_memory=False, num_workers=8):
     sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=True, drop_last=True)
     
     dataloader = DataLoader(dataset, batch_size=batch_size, pin_memory=pin_memory, num_workers=num_workers, drop_last=True, sampler=sampler)
@@ -550,11 +480,13 @@ def train(rank, world_size, dataset, model, optimizer_params, epoch, model_name)
 
             loss = loss
 
+            writer.add_scalar("Loss/train", loss, epoch)
+
             loss.backward()
 
             optimizer.step()
 
-            if step % 10 == 9:
+            if step % 5 == 4:
                 print(f"{loss} loss for step {step} in {epoch}")
     
     print(prof.key_averages().table(sort_by="self_cpu_time_total"))
@@ -567,6 +499,8 @@ def train(rank, world_size, dataset, model, optimizer_params, epoch, model_name)
     }
     print("Saved model")
     torch.save(state, model_path)
+
+    writer.flush()
     
     cleanup()
 
@@ -582,7 +516,7 @@ def validate(rank, world_size, dataset, model, optimizer_params, epoch, model_na
     # if we are using DistributedSampler, we have to tell it which epoch this is
     dataloader.sampler.set_epoch(epoch)
     
-    loss_fn = L2_Dist_Func_Intensity().to(rank)
+    loss_fn = L2_Dist_Func_Mae().to(rank)
     
     running_vloss = 0
 
@@ -597,10 +531,11 @@ def validate(rank, world_size, dataset, model, optimizer_params, epoch, model_na
             voutputs = model(vinputs).to(rank)
             vlabels = vlabels.to(rank)
             vloss = loss_fn(voutputs, vlabels, rank)
+            writer.add_scalar("Loss/validate", vloss, epoch)
             running_vloss += vloss.mean().item()
 
-            if step % 10 == 9:
-                print(f"{vloss} loss for step {step} in {epoch}")
+            if step % 5 == 4:
+                print(f"{vloss} loss for step {step} in {epoch} with MAE")
     
     avg_vloss = running_vloss / (step+1)
 
@@ -654,7 +589,7 @@ def eval(rank, world_size, dataset, model, model_name):
         print(f"test labels: {tloss.mean().item()}")
         running_tloss += tloss.mean().item()
 
-        if step % 10 == 9:
+        if step % 5 == 4:
             print(f"{tloss} loss for step {step} in {epoch}")
     
     avg_tloss = running_tloss / (step+1)
@@ -764,8 +699,8 @@ if __name__ == '__main__':
     test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds = load_datasets()            
     
     print("Trying single model training")
-    train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
-    # train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)
+    # train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
+    train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)
 
     # generate_feature_dataset(train_json, train_concat_ds, train_feature_label_json, "train")
     # generate_feature_dataset(val_json, val_concat_ds, val_feature_label_json, "val")
