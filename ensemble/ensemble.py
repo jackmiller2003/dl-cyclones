@@ -1,5 +1,5 @@
 
-# pip install xgboost tensorflow scikit-learn
+# pip install xgboost tensorflow sklearn
 
 import pickle
 from traceback import print_exc
@@ -44,7 +44,7 @@ def haversine_loss_tf(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
     delta_lambda = (lon1 - lon0) * (math.pi/180)
 
     a = tf.math.sin(delta_phi/2)**2 + tf.math.cos(phi0) * tf.math.cos(phi1) * tf.math.sin(delta_lambda/2)**2
-    c = 2 * R * tf.math.atan2(np.sqrt(a), tf.math.sqrt(1-a))
+    c = 2 * R * tf.math.atan2(tf.math.sqrt(a), tf.math.sqrt(1-a))
 
     return c
 
@@ -86,13 +86,13 @@ class ANNModel(BaseModel):
 
     def train(self, Xt, Xv, Yt, Yv, verbose=False):
         model = Sequential([
-            Dense(256, input_shape=Xt.shape[1:], activation='relu'),
+            Dense(256, input_shape=Xt.shape[1:], activation='gelu'),
             BatchNormalization(),
             Dropout(0.2),
-            Dense(256, input_shape=(256,), activation='relu'),
+            Dense(256, input_shape=(256,), activation='gelu'),
             BatchNormalization(),
             Dropout(0.2),
-            Dense(2)
+            Dense(2, input_shape=(256,), activation='gelu')
         ])
 
         if verbose: model.summary()
@@ -132,7 +132,7 @@ class ANNModel(BaseModel):
 
 # ADAPTIVE BOOSTING (ADABOOST)
 
-from sklearn.ensemble import AdaBoostClassifier
+from sklearn.ensemble import AdaBoostRegressor
 from sklearn.model_selection import GridSearchCV
 
 class AdaBoostModel(BaseModel):
@@ -140,20 +140,25 @@ class AdaBoostModel(BaseModel):
         super().__init__('ADA')
 
     def train(self, Xt, Xv, Yt, Yv, verbose=False):
-        models = GridSearchCV(AdaBoostClassifier(), { "n_estimators": [30, 300] }, verbose=verbose)
-        models.fit(Xt, Yt)
+        output_dim = len(Yt[0])
+        # AdaBoostRegressor only works with real targets, but we want to operate on vectors
+        # Thus (I kid you not) we train a vector of regression models, one for each component
+        models = [GridSearchCV(AdaBoostRegressor(), { "n_estimators": [30, 300] }, verbose=verbose) for i in range(output_dim)]
+        for i, model in enumerate(models): model.fit(Xt, Yt[:,i])
         if verbose: print('fit models')
 
-        best = models.best_estimator_
-        best.fit(Xt, Yt)
+        bests = [model.best_estimator_ for model in models]
+        print([model.best_params_ for model in models])
+        for i, best in enumerate(bests): best.fit(Xt, Yt[:,i])
         if verbose: print('fit best model')
 
-        self.src = best
-        self.mean_km = haversine_loss(Yv, best.predict(Xv)).mean()
+        self.src = bests
+        preds = [best.predict(Xv) for best in bests]
+        self.mean_km = haversine_loss(Yv, np.array(preds).T).mean()
         if verbose: print(f'validation mean km error: {self.mean_km:.1f}')
 
     def predict(self, X):
-        return self.src.predict(X)
+        return np.array([best.predict(X) for best in self.src])
 
 
 # K NEAREST NEIGHBOURS (K-NN)
@@ -172,7 +177,7 @@ class KNNModel(BaseModel):
             "metric": ["manhattan"]
         }
 
-        models = GridSearchCV(KNeighborsClassifier(n_jobs=-1), params, verbose=verbose)
+        models = GridSearchCV(KNeighborsRegressor(n_jobs=-1), params, verbose=verbose)
         models.fit(Xt, Yt)
         if verbose: print('fit models')
 
@@ -190,7 +195,7 @@ class KNNModel(BaseModel):
 
 # RANDOM FOREST
 
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor
 
 class RandomForestModel(BaseModel):
     def __init__(self):
@@ -199,11 +204,11 @@ class RandomForestModel(BaseModel):
     def train(self, Xt, Xv, Yt, Yv, verbose=False):
         params = {
             "max_depth": [None],
-            "max_features": [200],
+            #"max_features": [200],
             "n_estimators": [30]
         }
 
-        models = GridSearchCV(RandomForestClassifier(verbose=verbose), params, verbose=verbose)
+        models = GridSearchCV(RandomForestRegressor(verbose=verbose), params, verbose=verbose)
         models.fit(Xt, Yt)
         if verbose: print('fit models')
 
@@ -221,14 +226,14 @@ class RandomForestModel(BaseModel):
 
 # GRADIENT BOOSTING (XGBOOST)
 
-from xgboost import XGBClassifier
+from xgboost import XGBRegressor
 
 class XGBModel(BaseModel):
     def __init__(self):
         super().__init__('XGB')
 
     def train(self, Xt, Xv, Yt, Yv, verbose=False):
-        model = XGBClassifier(verbose=verbose)
+        model = XGBRegressor(verbose=verbose)
         model.fit(Xt, Yt)
         if verbose: print('fit model')
         self.src = model
@@ -236,25 +241,27 @@ class XGBModel(BaseModel):
         if verbose: print(f'validation mean km error: {self.mean_km:.1f}')
 
     def predict(self, X):
-        return self.onehot_from_cat(self.src.predict(X))
+        return self.src.predict(X)
 
 
 # ENSEMBLE
 
 model_classes = [ANNModel, AdaBoostModel, KNNModel, RandomForestModel, XGBModel]
 
-# each row is the feature vector for a time interval
-train_feature_vectors = np.load('train_features.npy')
-valid_feature_vectors = np.load('valid_features.npy')
+if __name__ == "__main__":
 
-# each row is the label vector (tuple of long, lat displacements) for a time interval
-train_label_vectors = np.load('train_labels.npy')
-valid_label_vectors = np.load('valid_labels.npy')
+    # each row is the feature vector for a time interval
+    train_feature_vectors = np.load('train_features.npy')
+    valid_feature_vectors = np.load('valid_features.npy')
 
-# train all of the models in model_classes on the training data
-for model_class in model_classes:
-    model = model_class()
-    print("Training model " + model.name)
-    model.train(train_feature_vectors, train_label_vectors, valid_feature_vectors, valid_label_vectors, verbose=True)
-    print("Saving model " + model.name + " which had validation mean km error of " + str(model.mean_km))
-    model.save(model.name)
+    # each row is the label vector (tuple of long, lat displacements) for a time interval
+    train_label_vectors = np.load('train_labels.npy')
+    valid_label_vectors = np.load('valid_labels.npy')
+
+    # train all of the models in model_classes on the training data
+    for model_class in model_classes:
+        model = model_class()
+        print("Training model " + model.name)
+        model.train(train_feature_vectors, train_label_vectors, valid_feature_vectors, valid_label_vectors, verbose=True)
+        print("Saving model " + model.name + " which had validation mean km error of " + str(model.mean_km))
+        model.save(model.name)
