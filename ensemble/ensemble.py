@@ -48,17 +48,10 @@ def haversine_loss_tf(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
 
     return c
 
-def load_model(name, alias):
-    try:
-        model = pickle.load(open(f'models/pkl/{name}-{alias}.pkl', 'rb'))
-        if name == 'ANN': model.src = keras.models.load_model(f'models/pkl/{name}-{alias}.h5')
-        return model
-    except Exception as e:
-        print_exc()
-
 class BaseModel:
-    def __init__(self, name):
-        self.name = name
+    NAME = None
+
+    def __init__(self):
         self.mean_km = 0 # validation mean KM error
         self.src = None # underlying model object
 
@@ -72,7 +65,11 @@ class BaseModel:
         return None
 
     def save(self, alias):
-        pickle.dump(self, open(f'models/pkl/{self.name}-{alias}.pkl', 'wb'))
+        pickle.dump(self, open(f'models/pkl/{self.NAME}-{alias}.pkl', 'wb'))
+
+    @classmethod
+    def load(cls, alias):
+        return pickle.load(open(f'models/pkl/{cls.NAME}-{alias}.pkl', 'rb'))
 
 
 # ARTIFICIAL NEURAL NETWORK
@@ -81,8 +78,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
 
 class ANNModel(BaseModel):
-    def __init__(self):
-        super().__init__('ANN')
+    NAME = 'ANN'
 
     def train(self, Xt, Xv, Yt, Yv, verbose=False):
         model = Sequential([
@@ -123,11 +119,18 @@ class ANNModel(BaseModel):
 
     def save(self, alias):
         # save actual model separately in h5 file
-        self.src.save(f'models/pkl/{self.name}-{alias}.h5')
+        self.src.save(f'models/pkl/{self.NAME}-{alias}.h5')
         model = self.src
         self.src = None
         super().save(alias)
         self.src = model
+
+    @classmethod
+    def load(cls, alias):
+        model = pickle.load(open(f'models/pkl/{cls.NAME}-{alias}.pkl', 'rb'))
+        model.src = keras.models.load_model(f'models/pkl/{cls.NAME}-{alias}.h5',
+            custom_objects={ "haversine_loss_tf": haversine_loss_tf })
+        return model
 
 
 # ADAPTIVE BOOSTING (ADABOOST)
@@ -136,8 +139,7 @@ from sklearn.ensemble import AdaBoostRegressor
 from sklearn.model_selection import GridSearchCV
 
 class AdaBoostModel(BaseModel):
-    def __init__(self):
-        super().__init__('ADA')
+    NAME = 'ADA'
 
     def train(self, Xt, Xv, Yt, Yv, verbose=False):
         output_dim = len(Yt[0])
@@ -158,7 +160,7 @@ class AdaBoostModel(BaseModel):
         if verbose: print(f'validation mean km error: {self.mean_km:.1f}')
 
     def predict(self, X):
-        return np.array([best.predict(X) for best in self.src])
+        return np.array([best.predict(X) for best in self.src]).T
 
 
 # K NEAREST NEIGHBOURS (K-NN)
@@ -167,8 +169,7 @@ import numpy as np
 from sklearn.neighbors import KNeighborsRegressor
 
 class KNNModel(BaseModel):
-    def __init__(self):
-        super().__init__('KNN')
+    NAME = 'KNN'
 
     def train(self, Xt, Xv, Yt, Yv, verbose=False):
         params = {
@@ -198,8 +199,7 @@ class KNNModel(BaseModel):
 from sklearn.ensemble import RandomForestRegressor
 
 class RandomForestModel(BaseModel):
-    def __init__(self):
-        super().__init__('RF')
+    NAME = 'RF'
 
     def train(self, Xt, Xv, Yt, Yv, verbose=False):
         params = {
@@ -229,8 +229,7 @@ class RandomForestModel(BaseModel):
 from xgboost import XGBRegressor
 
 class XGBModel(BaseModel):
-    def __init__(self):
-        super().__init__('XGB')
+    NAME = 'XGB'
 
     def train(self, Xt, Xv, Yt, Yv, verbose=False):
         model = XGBRegressor(verbose=verbose)
@@ -261,7 +260,7 @@ if __name__ == "__main__":
     # train all of the models in model_classes on the training data
     for model_class in model_classes:
         model = model_class()
-        print("Training model " + model.name)
+        print("Training model " + model.NAME)
         model.train(train_feature_vectors, train_label_vectors, valid_feature_vectors, valid_label_vectors, verbose=True)
-        print("Saving model " + model.name + " which had validation mean km error of " + str(model.mean_km))
-        model.save(model.name)
+        print("Saving model " + model.NAME + " which had validation mean km error of " + str(model.mean_km))
+        model.save('test')
