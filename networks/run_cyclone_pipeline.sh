@@ -18,8 +18,5 @@ mkdir $PBS_JOBFS/cyclone_binaries
 #module load python3/3.9.2
 
 # Run Python application
-# this script should be called with:
-# $ qsub -v start='0',end='-1' process_all_tracks.sh
-# where start, end are indices into the list of tracks
 python3 /home/156/jm0124/dl-cyclones/networks/cyclone_pipeline.py > $PBS_JOBID.log
 #~/.local/bin/pyinstrument process_tracks.py > $PBS_JOBID-profile.log
