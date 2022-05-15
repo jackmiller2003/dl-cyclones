@@ -84,11 +84,11 @@ class ANNModel(BaseModel):
         model = Sequential([
             Dense(256, input_shape=Xt.shape[1:], activation='gelu'),
             BatchNormalization(),
-            Dropout(0.2),
-            Dense(256, input_shape=(256,), activation='gelu'),
+            Dropout(0.5),
+            Dense(1024, input_shape=(256,), activation='gelu'),
             BatchNormalization(),
-            Dropout(0.2),
-            Dense(2, input_shape=(256,), activation='gelu')
+            Dropout(0.5),
+            Dense(Yt.shape[1], input_shape=(1024,), activation='gelu')
         ])
 
         if verbose: model.summary()
@@ -103,7 +103,7 @@ class ANNModel(BaseModel):
         history = model.fit(
             Xt, Yt,
             batch_size=batch,
-            epochs=10,
+            epochs=30,
             steps_per_epoch=(Xt.shape[0] // batch),
             verbose=1,
             shuffle=True,
@@ -145,7 +145,7 @@ class AdaBoostModel(BaseModel):
         output_dim = len(Yt[0])
         # AdaBoostRegressor only works with real targets, but we want to operate on vectors
         # Thus (I kid you not) we train a vector of regression models, one for each component
-        models = [GridSearchCV(AdaBoostRegressor(), { "n_estimators": [30, 300] }, verbose=verbose) for i in range(output_dim)]
+        models = [GridSearchCV(AdaBoostRegressor(), { "n_estimators": [30] }, verbose=verbose) for i in range(output_dim)]
         for i, model in enumerate(models): model.fit(Xt, Yt[:,i])
         if verbose: print('fit models')
 
@@ -173,7 +173,7 @@ class KNNModel(BaseModel):
 
     def train(self, Xt, Xv, Yt, Yv, verbose=False):
         params = {
-            "n_neighbors": [2, 5, 10],
+            "n_neighbors": [10],
             "weights": ["uniform"],
             "metric": ["manhattan"]
         }
