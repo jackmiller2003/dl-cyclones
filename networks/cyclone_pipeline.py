@@ -27,7 +27,12 @@ feature_dir = '/g/data/x77/jm0124/feature_vectors'
 train_feature_label_json = '/g/data/x77/jm0124/feature_vectors/train_feature_labels.json'
 val_feature_label_json = '/g/data/x77/jm0124/feature_vectors/val_feature_labels.json'
 test_feature_label_json = '/g/data/x77/jm0124/feature_vectors/test_feature_labels.json'
+train_feature_plain_label_json = '/g/data/x77/jm0124/feature_vectors/train_feature_labels_plain.json'
+val_feature_plain_label_json = '/g/data/x77/jm0124/feature_vectors/val_feature_labels_plain.json'
+test_feature_plain_label_json = '/g/data/x77/jm0124/feature_vectors/test_feature_labels_plain.json'
 train_dir = '/g/data/x77/ob2720/partition/train'
+val_dir = '/g/data/x77/ob2720/partition/valid'
+test_dir = '/g/data/x77/ob2720/partition/test'
 train_json = '/g/data/x77/ob2720/partition/train.json'
 val_json = '/g/data/x77/ob2720/partition/valid.json'
 test_json = '/g/data/x77/ob2720/partition/test.json'
@@ -42,7 +47,7 @@ import torch.multiprocessing as mp
 
 def setup(rank, world_size):
     os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12349'
+    os.environ['MASTER_PORT'] = '12352'
 
     # initialize the process group
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
@@ -58,7 +63,7 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
     model_z = Z_Model()
     model_meta = Meta_Model()
 
-    weight_decay = 1e-2
+    weight_decay = 3e-2
 
     if False:#'model_uv-0.0038049714482137156' in os.listdir(models_dir):
         EPOCHS = 5
@@ -148,7 +153,7 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
             model_z.load_state_dict(model_dict)
 
         optimizer_params = {
-            'learning_rate': 5e-8,
+            'learning_rate': 3e-8,
             'betas':betas,
             'eps':eps,
             'weight_decay':weight_decay,
@@ -181,7 +186,7 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
             model_z.load_state_dict(model_dict)
 
             optimizer_params = {
-            'learning_rate':5e-8,
+            'learning_rate':3e-8,
             'betas':betas,
             'eps':eps,
             'weight_decay':weight_decay,
@@ -198,232 +203,263 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
     return
         
 
-def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps, weight_decay, reimport=False):
+def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps, weight_decay, reimport=True):
     
     model_fusion = Fusion_Model()
 
-    if ('model_fusion' in os.listdir(models_dir)) and reimport:
-        model_fusion.load_state_dict(torch.load(f'{models_dir}/model_fusion'))
-    else:
-        print("-------- Loading models --------")
+    print("-------- Loading models --------")
 
-        model_uv = UV_Model()
+    model_uv = UV_Model()
 
-        # Need to specify here the exact models
-        if 'model_uv-125.32733644294785' in os.listdir(models_dir):
+    # Need to specify here the exact models
+    if 'model_uv-125.32733644294785' in os.listdir(models_dir):
 
-            state = torch.load(f'{models_dir}/model_uv-125.32733644294785')
+        state = torch.load(f'{models_dir}/model_uv-125.32733644294785')
 
-            state_dict = state['state_dict']
-            optimizer_dict = state['optimizer']
+        state_dict = state['state_dict']
+        optimizer_dict = state['optimizer']
 
-            model_dict = OrderedDict()
-            pattern = re.compile('module.')
-            for k,v in state_dict.items():
-                if re.search("module", k):
-                    model_dict[re.sub(pattern, '', k)] = v
-                else:
-                    model_dict = state_dict
+        model_dict = OrderedDict()
+        pattern = re.compile('module.')
+        for k,v in state_dict.items():
+            if re.search("module", k):
+                model_dict[re.sub(pattern, '', k)] = v
+            else:
+                model_dict = state_dict
 
-            model_uv.load_state_dict(model_dict)
+        model_uv.load_state_dict(model_dict)
+    
+    print("Model UV loaded")
+    
+    model_z = Z_Model()
+
+    if 'model_z-177.06781681493158' in os.listdir(models_dir):
+        state = torch.load(f'{models_dir}/model_z-177.06781681493158')
+
+        state_dict = state['state_dict']
+        optimizer_dict = state['optimizer']
+
+        model_dict = OrderedDict()
+        pattern = re.compile('module.')
+        for k,v in state_dict.items():
+            if re.search("module", k):
+                model_dict[re.sub(pattern, '', k)] = v
+            else:
+                model_dict = state_dict
+                
+        model_z.load_state_dict(model_dict)
+    
+    print("Model z loaded")
+
+    model_fusion = Fusion_Model()
+
+    pretrained_dict_uv = model_uv.state_dict()
+    pretrained_dict_z = model_z.state_dict()
+    model_fusion_dict = model_fusion.state_dict()
+
+    # Imports for UV model
+
+    model_fusion_dict['conv0_uv.weight'] = pretrained_dict_uv['conv0.weight']
+    model_fusion_dict['conv0_uv.bias'] = pretrained_dict_uv['conv0.bias']
+    model_fusion_dict['conv0_bn_uv.weight'] = pretrained_dict_uv['conv0_bn.weight']
+    model_fusion_dict['conv0_bn_uv.bias'] = pretrained_dict_uv['conv0_bn.bias']
+    model_fusion_dict['conv0_bn_uv.running_mean'] = pretrained_dict_uv['conv0_bn.running_mean']
+    model_fusion_dict['conv0_bn_uv.running_var'] = pretrained_dict_uv['conv0_bn.running_var']
+
+    model_fusion_dict['conv1_uv.weight'] = pretrained_dict_uv['conv1.weight']
+    model_fusion_dict['conv1_uv.bias'] = pretrained_dict_uv['conv1.bias']
+    model_fusion_dict['conv1_bn_uv.weight'] = pretrained_dict_uv['conv1_bn.weight']
+    model_fusion_dict['conv1_bn_uv.bias'] = pretrained_dict_uv['conv1_bn.bias']
+    model_fusion_dict['conv1_bn_uv.running_mean'] = pretrained_dict_uv['conv1_bn.running_mean']
+    model_fusion_dict['conv1_bn_uv.running_var'] = pretrained_dict_uv['conv1_bn.running_var']
+
+    model_fusion_dict['conv2_uv.weight'] = pretrained_dict_uv['conv2.weight']
+    model_fusion_dict['conv2_uv.bias'] = pretrained_dict_uv['conv2.bias']
+    model_fusion_dict['conv2_bn_uv.weight'] = pretrained_dict_uv['conv2_bn.weight']
+    model_fusion_dict['conv2_bn_uv.bias'] = pretrained_dict_uv['conv2_bn.bias']
+    model_fusion_dict['conv2_bn_uv.running_mean'] = pretrained_dict_uv['conv2_bn.running_mean']
+    model_fusion_dict['conv2_bn_uv.running_var'] = pretrained_dict_uv['conv2_bn.running_var']
+
+    model_fusion_dict['conv3_uv.weight'] = pretrained_dict_uv['conv3.weight']
+    model_fusion_dict['conv3_uv.bias'] = pretrained_dict_uv['conv3.bias']
+    model_fusion_dict['conv3_bn_uv.weight'] = pretrained_dict_uv['conv3_bn.weight']
+    model_fusion_dict['conv3_bn_uv.bias'] = pretrained_dict_uv['conv3_bn.bias']
+    model_fusion_dict['conv3_bn_uv.running_mean'] = pretrained_dict_uv['conv3_bn.running_mean']
+    model_fusion_dict['conv3_bn_uv.running_var'] = pretrained_dict_uv['conv3_bn.running_var']
+
+    model_fusion_dict['conv4_uv.weight'] = pretrained_dict_uv['conv4.weight']
+    model_fusion_dict['conv4_uv.bias'] = pretrained_dict_uv['conv4.bias']
+    model_fusion_dict['conv4_bn_uv.weight'] = pretrained_dict_uv['conv4_bn.weight']
+    model_fusion_dict['conv4_bn_uv.bias'] = pretrained_dict_uv['conv4_bn.bias']
+    model_fusion_dict['conv4_bn_uv.running_mean'] = pretrained_dict_uv['conv4_bn.running_mean']
+    model_fusion_dict['conv4_bn_uv.running_var'] = pretrained_dict_uv['conv4_bn.running_var']
+
+    model_fusion_dict['fc1_uv.weight'] = pretrained_dict_uv['fc1.weight']
+    model_fusion_dict['fc1_uv.bias'] = pretrained_dict_uv['fc1.bias']
+    model_fusion_dict['fc1_bn_uv.weight'] = pretrained_dict_uv['fc1_bn.weight']
+    model_fusion_dict['fc1_bn_uv.bias'] = pretrained_dict_uv['fc1_bn.bias']
+    model_fusion_dict['fc1_bn_uv.running_mean'] = pretrained_dict_uv['fc1_bn.running_mean']
+    model_fusion_dict['fc1_bn_uv.running_var'] = pretrained_dict_uv['fc1_bn.running_var']
+
+    model_fusion_dict['fc2_uv.weight'] = pretrained_dict_uv['fc2.weight']
+    model_fusion_dict['fc2_uv.bias'] = pretrained_dict_uv['fc2.bias']
+    model_fusion_dict['fc2_bn_uv.weight'] = pretrained_dict_uv['fc2_bn.weight']
+    model_fusion_dict['fc2_bn_uv.bias'] = pretrained_dict_uv['fc2_bn.bias']
+    model_fusion_dict['fc2_bn_uv.running_mean'] = pretrained_dict_uv['fc2_bn.running_mean']
+    model_fusion_dict['fc2_bn_uv.running_var'] = pretrained_dict_uv['fc2_bn.running_var']
+
+    # Imports for Z model
+
+    model_fusion_dict['conv0_z.weight'] = pretrained_dict_z['conv0.weight']
+    model_fusion_dict['conv0_z.bias'] = pretrained_dict_z['conv0.bias']
+    model_fusion_dict['conv0_bn_z.weight'] = pretrained_dict_z['conv0_bn.weight']
+    model_fusion_dict['conv0_bn_z.bias'] = pretrained_dict_z['conv0_bn.bias']
+    model_fusion_dict['conv0_bn_z.running_mean'] = pretrained_dict_z['conv0_bn.running_mean']
+    model_fusion_dict['conv0_bn_z.running_var'] = pretrained_dict_z['conv0_bn.running_var']
+
+    model_fusion_dict['conv1_z.weight'] = pretrained_dict_z['conv1.weight']
+    model_fusion_dict['conv1_z.bias'] = pretrained_dict_z['conv1.bias']
+    model_fusion_dict['conv1_bn_z.weight'] = pretrained_dict_z['conv1_bn.weight']
+    model_fusion_dict['conv1_bn_z.bias'] = pretrained_dict_z['conv1_bn.bias']
+    model_fusion_dict['conv1_bn_z.running_mean'] = pretrained_dict_z['conv1_bn.running_mean']
+    model_fusion_dict['conv1_bn_z.running_var'] = pretrained_dict_z['conv1_bn.running_var']
+
+    model_fusion_dict['conv2_z.weight'] = pretrained_dict_z['conv2.weight']
+    model_fusion_dict['conv2_z.bias'] = pretrained_dict_z['conv2.bias']
+    model_fusion_dict['conv2_bn_z.weight'] = pretrained_dict_z['conv2_bn.weight']
+    model_fusion_dict['conv2_bn_z.bias'] = pretrained_dict_z['conv2_bn.bias']
+    model_fusion_dict['conv2_bn_z.running_mean'] = pretrained_dict_z['conv2_bn.running_mean']
+    model_fusion_dict['conv2_bn_z.running_var'] = pretrained_dict_z['conv2_bn.running_var']
+
+    model_fusion_dict['conv3_z.weight'] = pretrained_dict_z['conv3.weight']
+    model_fusion_dict['conv3_z.bias'] = pretrained_dict_z['conv3.bias']
+    model_fusion_dict['conv3_bn_z.weight'] = pretrained_dict_z['conv3_bn.weight']
+    model_fusion_dict['conv3_bn_z.bias'] = pretrained_dict_z['conv3_bn.bias']
+    model_fusion_dict['conv3_bn_z.running_mean'] = pretrained_dict_z['conv3_bn.running_mean']
+    model_fusion_dict['conv3_bn_z.running_var'] = pretrained_dict_z['conv3_bn.running_var']
+
+    model_fusion_dict['conv4_z.weight'] = pretrained_dict_z['conv4.weight']
+    model_fusion_dict['conv4_z.bias'] = pretrained_dict_z['conv4.bias']
+    model_fusion_dict['conv4_bn_z.weight'] = pretrained_dict_z['conv4_bn.weight']
+    model_fusion_dict['conv4_bn_z.bias'] = pretrained_dict_z['conv4_bn.bias']
+    model_fusion_dict['conv4_bn_z.running_mean'] = pretrained_dict_z['conv4_bn.running_mean']
+    model_fusion_dict['conv4_bn_z.running_var'] = pretrained_dict_z['conv4_bn.running_var']
+
+    model_fusion_dict['fc1_z.weight'] = pretrained_dict_z['fc1.weight']
+    model_fusion_dict['fc1_z.bias'] = pretrained_dict_z['fc1.bias']
+    model_fusion_dict['fc1_bn_z.weight'] = pretrained_dict_z['fc1_bn.weight']
+    model_fusion_dict['fc1_bn_z.bias'] = pretrained_dict_z['fc1_bn.bias']
+    model_fusion_dict['fc1_bn_z.running_mean'] = pretrained_dict_z['fc1_bn.running_mean']
+    model_fusion_dict['fc1_bn_z.running_var'] = pretrained_dict_z['fc1_bn.running_var']
+
+    model_fusion_dict['fc2_z.weight'] = pretrained_dict_z['fc2.weight']
+    model_fusion_dict['fc2_z.bias'] = pretrained_dict_z['fc2.bias']
+    model_fusion_dict['fc2_bn_z.weight'] = pretrained_dict_z['fc2_bn.weight']
+    model_fusion_dict['fc2_bn_z.bias'] = pretrained_dict_z['fc2_bn.bias']
+    model_fusion_dict['fc2_bn_z.running_mean'] = pretrained_dict_z['fc2_bn.running_mean']
+    model_fusion_dict['fc2_bn_z.running_var'] = pretrained_dict_z['fc2_bn.running_var']
+
+    """
+    Taken directly from Fussion_CNN_hurricanes
+    See file: https://github.com/sophiegif/FusionCNN_hurricanes/blob/d2a48a3aa8ac75f5cbc506f7dfc5977e2df3abff/script_launch_fusion.py#L121-L277
+    However, removed additional fc layer init.
+    """
+
+    # load weigths for fusion model
+    model_fusion.load_state_dict(model_fusion_dict)
+
+    # state = torch.load(f'{models_dir}/model_fusion_scratch')
+
+    # state_dict = state['state_dict']
+    # optimizer_dict = state['optimizer']
+
+    # model_dict = OrderedDict()
+    # pattern = re.compile('module.')
+    # for k,v in state_dict.items():
+    #     if re.search("module", k):
+    #         model_dict[re.sub(pattern, '', k)] = v
+    #     else:
+    #         model_dict = state_dict
+    # model_fusion.load_state_dict(model_dict)    
+
+    # state_dict = model_dict
+    state_dict = model_fusion_dict
+
+    # set unfused layers freezed
+    num_params = 0
+    for param in model_fusion.parameters():
+        num_params += 1
+    unfreeze_params = [state_dict['fc1.weight'], state_dict['fc2.weight'], state_dict['fc3.weight'],
+                        state_dict['fc4.weight'],
+                         state_dict['fc1.bias'], state_dict['fc2.bias'], state_dict['fc3.bias'], 
+                         state_dict['fc4.bias'],
+                        state_dict['fc1_bn.weight'], state_dict['fc2_bn.weight'], 
+                        state_dict['fc3_bn.weight'],
+                        state_dict['fc1_bn.bias'], state_dict['fc2_bn.bias'],
+                        state_dict['fc3_bn.bias']]
+
+    for counter, param in enumerate(model_fusion.parameters()):
+        found_param = False
+        for unfreeze_param in unfreeze_params:
+            if param.size() == unfreeze_param.size():
+                if param.to(0).equal(unfreeze_param.to(0)):
+                    param.requires_grad = True
+                    found_param = True
+
+        if not found_param:
+            param.requires_grad = False
+    
+    optimizer_dict = {}
+
+    optimizer_params = {
+        'learning_rate':1e-5,
+        'betas':betas,
+        'eps':eps,
+        'weight_decay':weight_decay,
+        'optimizer_dict':optimizer_dict
+    }
+
+    print("Spawned processes")
+    
+    EPOCHS = 50
+
+    for epoch in range(1,EPOCHS+1):
+
+        world_size = 2
+        mp.spawn(
+            train,
+            args=(world_size, train_concat_ds, model_fusion, optimizer_params, epoch, "model_fusion"),
+            nprocs=world_size
+        )
         
-        print("Model UV loaded")
+        state = torch.load(f'{models_dir}/model_fusion_scratch')
         
-        model_z = Z_Model()
+        state_dict = state['state_dict']
+        optimizer_dict = state['optimizer']
 
-        if 'model_z-177.06781681493158' in os.listdir(models_dir):
-            state = torch.load(f'{models_dir}/model_z-177.06781681493158')
-
-            state_dict = state['state_dict']
-            optimizer_dict = state['optimizer']
-
-            model_dict = OrderedDict()
-            pattern = re.compile('module.')
-            for k,v in state_dict.items():
-                if re.search("module", k):
-                    model_dict[re.sub(pattern, '', k)] = v
-                else:
-                    model_dict = state_dict
-                    
-            model_z.load_state_dict(model_dict)
-        
-        print("Model z loaded")
-
-        model_fusion = Fusion_Model()
-
-        pretrained_dict_uv = model_uv.state_dict()
-        pretrained_dict_z = model_z.state_dict()
-        model_fusion_dict = model_fusion.state_dict()
-
-        # Imports for UV model
-
-        model_fusion_dict['conv0_uv.weight'] = pretrained_dict_uv['conv0.weight']
-        model_fusion_dict['conv0_uv.bias'] = pretrained_dict_uv['conv0.bias']
-        model_fusion_dict['conv0_bn_uv.weight'] = pretrained_dict_uv['conv0_bn.weight']
-        model_fusion_dict['conv0_bn_uv.bias'] = pretrained_dict_uv['conv0_bn.bias']
-        model_fusion_dict['conv0_bn_uv.running_mean'] = pretrained_dict_uv['conv0_bn.running_mean']
-        model_fusion_dict['conv0_bn_uv.running_var'] = pretrained_dict_uv['conv0_bn.running_var']
-
-        model_fusion_dict['conv1_uv.weight'] = pretrained_dict_uv['conv1.weight']
-        model_fusion_dict['conv1_uv.bias'] = pretrained_dict_uv['conv1.bias']
-        model_fusion_dict['conv1_bn_uv.weight'] = pretrained_dict_uv['conv1_bn.weight']
-        model_fusion_dict['conv1_bn_uv.bias'] = pretrained_dict_uv['conv1_bn.bias']
-        model_fusion_dict['conv1_bn_uv.running_mean'] = pretrained_dict_uv['conv1_bn.running_mean']
-        model_fusion_dict['conv1_bn_uv.running_var'] = pretrained_dict_uv['conv1_bn.running_var']
-
-        model_fusion_dict['conv2_uv.weight'] = pretrained_dict_uv['conv2.weight']
-        model_fusion_dict['conv2_uv.bias'] = pretrained_dict_uv['conv2.bias']
-        model_fusion_dict['conv2_bn_uv.weight'] = pretrained_dict_uv['conv2_bn.weight']
-        model_fusion_dict['conv2_bn_uv.bias'] = pretrained_dict_uv['conv2_bn.bias']
-        model_fusion_dict['conv2_bn_uv.running_mean'] = pretrained_dict_uv['conv2_bn.running_mean']
-        model_fusion_dict['conv2_bn_uv.running_var'] = pretrained_dict_uv['conv2_bn.running_var']
-
-        model_fusion_dict['conv3_uv.weight'] = pretrained_dict_uv['conv3.weight']
-        model_fusion_dict['conv3_uv.bias'] = pretrained_dict_uv['conv3.bias']
-        model_fusion_dict['conv3_bn_uv.weight'] = pretrained_dict_uv['conv3_bn.weight']
-        model_fusion_dict['conv3_bn_uv.bias'] = pretrained_dict_uv['conv3_bn.bias']
-        model_fusion_dict['conv3_bn_uv.running_mean'] = pretrained_dict_uv['conv3_bn.running_mean']
-        model_fusion_dict['conv3_bn_uv.running_var'] = pretrained_dict_uv['conv3_bn.running_var']
-
-        model_fusion_dict['conv4_uv.weight'] = pretrained_dict_uv['conv4.weight']
-        model_fusion_dict['conv4_uv.bias'] = pretrained_dict_uv['conv4.bias']
-        model_fusion_dict['conv4_bn_uv.weight'] = pretrained_dict_uv['conv4_bn.weight']
-        model_fusion_dict['conv4_bn_uv.bias'] = pretrained_dict_uv['conv4_bn.bias']
-        model_fusion_dict['conv4_bn_uv.running_mean'] = pretrained_dict_uv['conv4_bn.running_mean']
-        model_fusion_dict['conv4_bn_uv.running_var'] = pretrained_dict_uv['conv4_bn.running_var']
-
-        model_fusion_dict['fc1_uv.weight'] = pretrained_dict_uv['fc1.weight']
-        model_fusion_dict['fc1_uv.bias'] = pretrained_dict_uv['fc1.bias']
-        model_fusion_dict['fc1_bn_uv.weight'] = pretrained_dict_uv['fc1_bn.weight']
-        model_fusion_dict['fc1_bn_uv.bias'] = pretrained_dict_uv['fc1_bn.bias']
-        model_fusion_dict['fc1_bn_uv.running_mean'] = pretrained_dict_uv['fc1_bn.running_mean']
-        model_fusion_dict['fc1_bn_uv.running_var'] = pretrained_dict_uv['fc1_bn.running_var']
-
-        # Imports for Z model
-
-        model_fusion_dict['conv0_z.weight'] = pretrained_dict_z['conv0.weight']
-        model_fusion_dict['conv0_z.bias'] = pretrained_dict_z['conv0.bias']
-        model_fusion_dict['conv0_bn_z.weight'] = pretrained_dict_z['conv0_bn.weight']
-        model_fusion_dict['conv0_bn_z.bias'] = pretrained_dict_z['conv0_bn.bias']
-        model_fusion_dict['conv0_bn_z.running_mean'] = pretrained_dict_z['conv0_bn.running_mean']
-        model_fusion_dict['conv0_bn_z.running_var'] = pretrained_dict_z['conv0_bn.running_var']
-
-        model_fusion_dict['conv1_z.weight'] = pretrained_dict_z['conv1.weight']
-        model_fusion_dict['conv1_z.bias'] = pretrained_dict_z['conv1.bias']
-        model_fusion_dict['conv1_bn_z.weight'] = pretrained_dict_z['conv1_bn.weight']
-        model_fusion_dict['conv1_bn_z.bias'] = pretrained_dict_z['conv1_bn.bias']
-        model_fusion_dict['conv1_bn_z.running_mean'] = pretrained_dict_z['conv1_bn.running_mean']
-        model_fusion_dict['conv1_bn_z.running_var'] = pretrained_dict_z['conv1_bn.running_var']
-
-        model_fusion_dict['conv2_z.weight'] = pretrained_dict_z['conv2.weight']
-        model_fusion_dict['conv2_z.bias'] = pretrained_dict_z['conv2.bias']
-        model_fusion_dict['conv2_bn_z.weight'] = pretrained_dict_z['conv2_bn.weight']
-        model_fusion_dict['conv2_bn_z.bias'] = pretrained_dict_z['conv2_bn.bias']
-        model_fusion_dict['conv2_bn_z.running_mean'] = pretrained_dict_z['conv2_bn.running_mean']
-        model_fusion_dict['conv2_bn_z.running_var'] = pretrained_dict_z['conv2_bn.running_var']
-
-        model_fusion_dict['conv3_z.weight'] = pretrained_dict_z['conv3.weight']
-        model_fusion_dict['conv3_z.bias'] = pretrained_dict_z['conv3.bias']
-        model_fusion_dict['conv3_bn_z.weight'] = pretrained_dict_z['conv3_bn.weight']
-        model_fusion_dict['conv3_bn_z.bias'] = pretrained_dict_z['conv3_bn.bias']
-        model_fusion_dict['conv3_bn_z.running_mean'] = pretrained_dict_z['conv3_bn.running_mean']
-        model_fusion_dict['conv3_bn_z.running_var'] = pretrained_dict_z['conv3_bn.running_var']
-
-        model_fusion_dict['conv4_z.weight'] = pretrained_dict_z['conv4.weight']
-        model_fusion_dict['conv4_z.bias'] = pretrained_dict_z['conv4.bias']
-        model_fusion_dict['conv4_bn_z.weight'] = pretrained_dict_z['conv4_bn.weight']
-        model_fusion_dict['conv4_bn_z.bias'] = pretrained_dict_z['conv4_bn.bias']
-        model_fusion_dict['conv4_bn_z.running_mean'] = pretrained_dict_z['conv4_bn.running_mean']
-        model_fusion_dict['conv4_bn_z.running_var'] = pretrained_dict_z['conv4_bn.running_var']
-
-        model_fusion_dict['fc1_z.weight'] = pretrained_dict_z['fc1.weight']
-        model_fusion_dict['fc1_z.bias'] = pretrained_dict_z['fc1.bias']
-        model_fusion_dict['fc1_bn_z.weight'] = pretrained_dict_z['fc1_bn.weight']
-        model_fusion_dict['fc1_bn_z.bias'] = pretrained_dict_z['fc1_bn.bias']
-        model_fusion_dict['fc1_bn_z.running_mean'] = pretrained_dict_z['fc1_bn.running_mean']
-        model_fusion_dict['fc1_bn_z.running_var'] = pretrained_dict_z['fc1_bn.running_var']
-
-        """
-        Taken directly from Fussion_CNN_hurricanes
-        See file: https://github.com/sophiegif/FusionCNN_hurricanes/blob/d2a48a3aa8ac75f5cbc506f7dfc5977e2df3abff/script_launch_fusion.py#L121-L277
-        However, removed additional fc layer init.
-        """
-
-        # load weigths for fusion model
-        model_fusion.load_state_dict(model_fusion_dict)
-
-        # set unfused layers freezed
-        num_params = 0
-        for param in model_fusion.parameters():
-            num_params += 1
-        unfreeze_params = [model_fusion_dict['fc1.weight'], model_fusion_dict['fc2.weight'], model_fusion_dict['fc3.weight'],
-                            model_fusion_dict['fc4.weight'], model_fusion_dict['fc1.bias'],
-                            model_fusion_dict['fc2.bias'], model_fusion_dict['fc3.bias'], model_fusion_dict['fc4.bias'],
-                            model_fusion_dict['fc1_bn.weight'], model_fusion_dict['fc2_bn.weight'], model_fusion_dict['fc3_bn.weight'],
-                            model_fusion_dict['fc1_bn.bias'], model_fusion_dict['fc2_bn.bias'], model_fusion_dict['fc3_bn.bias']]        
-
-        for counter, param in enumerate(model_fusion.parameters()):
-            found_param = False
-            for unfreeze_param in unfreeze_params:
-                if param.size() == unfreeze_param.size():
-                    if param.equal(unfreeze_param):
-                        param.requires_grad = True
-                        found_param = True
-
-            if not found_param:
-                param.requires_grad = False
-        
-        optimizer_dict = {}
+        model_dict = OrderedDict()
+        pattern = re.compile('module.')
+        for k,v in state_dict.items():
+            if re.search("module", k):
+                model_dict[re.sub(pattern, '', k)] = v
+            else:
+                model_dict = state_dict
+        model_fusion.load_state_dict(model_dict)
 
         optimizer_params = {
-            'learning_rate':5e-4,
+            'learning_rate':1e-5,
             'betas':betas,
             'eps':eps,
             'weight_decay':weight_decay,
             'optimizer_dict':optimizer_dict
         }
 
-        print("Spawned processes")
-        
-        EPOCHS = 30
-
-        for epoch in range(1,EPOCHS+1):
-
-            world_size = 2
-            mp.spawn(
-                train,
-                args=(world_size, train_concat_ds, model_fusion, optimizer_params, epoch, "model_fusion"),
-                nprocs=world_size
-            )
-            
-            state = torch.load(f'{models_dir}/model_fusion_scratch')
-            
-            state_dict = state['state_dict']
-            optimizer_dict = state['optimizer']
-
-            model_dict = OrderedDict()
-            pattern = re.compile('module.')
-            for k,v in state_dict.items():
-                if re.search("module", k):
-                    model_dict[re.sub(pattern, '', k)] = v
-                else:
-                    model_dict = state_dict
-            model_fusion.load_state_dict(model_dict)
-
-            optimizer_params = {
-                'learning_rate':5e-4,
-                'betas':betas,
-                'eps':eps,
-                'weight_decay':weight_decay,
-                'optimizer_dict':optimizer_dict
-            }
-
-            # This needs to be changed to not call save because it will call it twice.
-            mp.spawn(
-                validate,
-                args=(world_size, val_concat_ds, model_fusion, optimizer_params, epoch, "model_fusion"),
-                nprocs=world_size
-            )
+        # This needs to be changed to not call save because it will call it twice.
+        mp.spawn(
+            validate,
+            args=(world_size, val_concat_ds, model_fusion, optimizer_params, epoch, "model_fusion"),
+            nprocs=world_size
+        )
 
 def prepare(rank, world_size, dataset, batch_size=512, pin_memory=False, num_workers=8):
     sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=True, drop_last=True)
@@ -659,14 +695,14 @@ def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json, partitio
 
     model_fusion.eval()
 
-    feature_array = np.zeros((len(cyclone_dataset), 1167))
+    feature_array = np.zeros((len(cyclone_dataset), 4111))
 
     j = 0
 
-    with open(train_json, 'r') as cj:
+    with open(cyclone_json, 'r') as cj:
         cyclone_dict = json.load(cj)
     
-    cyclone_dir = train_dir
+    cyclone_dir = test_dir
 
     for cyclone in tqdm(cyclone_dict):
         examples, labels = get_examples_and_labels(cyclone_dir, f"{cyclone}", cyclone_dict, include_time=True, fusion=True)
@@ -690,7 +726,7 @@ def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json, partitio
 
             j += 1
 
-    np.save(f'{feature_dir}/feature-array-{partition_name}.npy', feature_array)
+    np.save(f'{feature_dir}/feature-array-plain-{partition_name}.npy', feature_array)
 
 
 if __name__ == '__main__':
@@ -698,12 +734,11 @@ if __name__ == '__main__':
     train_dataset_uv, validate_dataset_uv, test_dataset_uv, train_dataset_z, validate_dataset_z, test_dataset_z, train_dataset_meta, validate_dataset_meta, \
     test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds = load_datasets()            
     
-    print("Trying single model training")
     # train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
-    train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-4, False)
+   
 
-    # generate_feature_dataset(train_json, train_concat_ds, train_feature_label_json, "train")
-    # generate_feature_dataset(val_json, val_concat_ds, val_feature_label_json, "val")
-    # generate_feature_dataset(test_json, test_concat_ds, test_feature_label_json, "test")
-
+    generate_feature_dataset(train_json, train_concat_ds, train_feature_label_json, "train")
+    generate_feature_dataset(val_json, validate_concat_ds, val_feature_label_json, "val")
+    generate_feature_dataset(test_json, test_concat_ds, test_feature_label_json, "test")
+    # train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-2, False)
     # Want to test 2014253N13260
