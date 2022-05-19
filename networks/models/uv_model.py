@@ -5,10 +5,11 @@ import math
  
 # Need to modify
 class UV_Model(nn.Module):
-    def __init__(self, time_steps_back=1, pressure_levels=5):
+    def __init__(self, time_steps_back=1, pressure_levels=5, feature_pred=False):
         super(UV_Model, self).__init__()
 
         self.in_channels = 2*(time_steps_back+1)*pressure_levels
+        self.feature_pred = feature_pred
         
         self.dropout = nn.Dropout(0.5)
 
@@ -112,6 +113,10 @@ class UV_Model(nn.Module):
         x = F.relu(self.fc1_bn(self.fc1(x)))
         x = self.dropout(x)
         x = F.relu(self.fc2_bn(self.fc2(x)))
+
+        if self.feature_pred == True:
+            return self.fc2(x)
+
         x = self.dropout(x)
         x = self.fc3(x)
         # print(x.size())

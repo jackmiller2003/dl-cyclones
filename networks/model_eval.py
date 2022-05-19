@@ -29,15 +29,20 @@ from utils.data_loader import *
 data_dir = '/g/data/x77/jm0124/test_holdout/'
 models_dir = '/g/data/x77/jm0124/models'
 
-test_path = '/home/156/jm0124/dl-cyclones/tracks/test.json'
+train_dir = '/g/data/x77/ob2720/partition/train'
+val_dir = '/g/data/x77/ob2720/partition/valid'
+test_dir = '/g/data/x77/ob2720/partition/test'
+train_json = '/g/data/x77/ob2720/partition/train.json'
+val_json = '/g/data/x77/ob2720/partition/valid.json'
+test_json = '/g/data/x77/ob2720/partition/test.json'
 
 one_hot_path = str(Path(__file__).parent.parent / 'tracks' / 'one_hot_dict.json')
 
 with open(one_hot_path, 'r') as oht:
     one_hot_dict = json.load(oht)
 
-with open(test_path, 'r') as test_json:
-    test_dict = json.load(test_json)
+with open(test_json, 'r') as tj:
+    test_dict = json.load(tj)
 
 def haversine(lon1, lat1, lon2, lat2):
     """
@@ -58,14 +63,17 @@ def haversine(lon1, lat1, lon2, lat2):
 def eval_on_cyclone(cyclone_id, model):
     model.eval()
 
-    examples, labels = get_examples_and_labels(cyclone_id)
+    examples, labels = get_examples_and_labels(test_dir, cyclone_id, test_dict)
     pred_points = []
     true_points = []
     original_points = []
     distances = []
 
+    model.to(0)
+
     for i in range(0, len(examples)):
-        pred = model.forward(examples[i]).detach().numpy()
+        # print(examples[i][0].size())
+        pred = model.forward(examples[i]).cpu().detach().numpy()
 
         label = labels[i].detach().numpy()
 
@@ -151,7 +159,11 @@ def eval_on_cyclone(cyclone_id, model):
     base.set_xlim(minx-5, maxx+5)
     base.set_ylim(miny-5, maxy+5)
 
-    gdf2.plot(ax=base, color=gdf2['colour'], alpha=0.9)
+    base.set(title=f'Plot of Fusion Network Predictions for {cyclone_id}')
+    base.set(xlabel='longitude')
+    base.set(ylabel='latitude')  
+
+    gdf2.plot(ax=base, color=gdf2['colour'], alpha=0.9, legend=True)
 
     square_distance = 0
     
@@ -159,7 +171,7 @@ def eval_on_cyclone(cyclone_id, model):
 
     print(f"{cyclone_id} and {mse}")
 
-    plt.savefig(f'images/world-{cyclone_id}-{mse}.jpg', dpi=800)
+    plt.savefig(f'images/fusion-{cyclone_id}-{mse}.jpg', dpi=800)
     
 
 def get_examples_and_labels(cyclone_dir, cyclone, data_dict, include_time=False, fusion=False):
@@ -180,10 +192,10 @@ def get_examples_and_labels(cyclone_dir, cyclone, data_dict, include_time=False,
         cyclone_ds = xarray.open_dataset(f"{cyclone_dir}/{cyclone}.nc", engine='netcdf4')
         cyclone_ds_new = cyclone_ds[dict(time=list(range(j-time_step_back-1,j)))]
         
-        # if target_parameters == [0,1]:
-        #     cyclone_ds_new = cyclone_ds_new[['u','v']]
-        # elif target_parameters == [2]:
-        #     cyclone_ds_new = cyclone_ds_new[['z']]
+        if target_parameters == [0,1]:
+            cyclone_ds_new = cyclone_ds_new[['u','v']]
+        elif target_parameters == [2]:
+            cyclone_ds_new = cyclone_ds_new[['z']]
         
         if target_parameters == [0,1,2]:
             cyclone_ds_new = cyclone_ds_new[['u','v','z']]
@@ -196,21 +208,20 @@ def get_examples_and_labels(cyclone_dir, cyclone, data_dict, include_time=False,
 
         example = torch.reshape(example, (1,num_channels,160,160))
 
-        if fusion:
-            sub_basin_encoding = np.zeros((9,1))
-            sub_basin_encoding[one_hot_dict[data['subbasin'][j-1]]] = 1
+        sub_basin_encoding = np.zeros((9,1))
+        sub_basin_encoding[one_hot_dict[data['subbasin'][j-1]]] = 1
 
-            meta_example = torch.from_numpy(np.array([
-                float(data['categories'][j-2]),
-                float(data['categories'][j-1]),
-                float(data['coordinates'][j-2][0]),
-                float(data['coordinates'][j-2][1]),
-                float(data['coordinates'][j-1][0]),
-                float(data['coordinates'][j-1][1])
-            ]))
+        meta_example = torch.from_numpy(np.array([
+            float(data['categories'][j-2]),
+            float(data['categories'][j-1]),
+            float(data['coordinates'][j-2][0]),
+            float(data['coordinates'][j-2][1]),
+            float(data['coordinates'][j-1][0]),
+            float(data['coordinates'][j-1][1])
+        ]))
 
-            # Size is now 6 + 9 = 15
-            meta_example = np.append(meta_example, sub_basin_encoding)
+        # Size is now 6 + 9 = 15
+        meta_example = np.append(meta_example, sub_basin_encoding)
 
         example = example.to(0)
 
@@ -241,9 +252,9 @@ def get_examples_and_labels(cyclone_dir, cyclone, data_dict, include_time=False,
 
 if __name__ == "__main__":
 
-    model_uv = UV_Model()
+    model_fusion = Fusion_Model()
 
-    state = torch.load(f'{models_dir}/model_uv-64.7119321766501')            
+    state = torch.load(f'{models_dir}/model_fusion-127.27998783874791')            
     state_dict = state['state_dict']
     
     model_dict = OrderedDict()
@@ -253,7 +264,7 @@ if __name__ == "__main__":
             model_dict[re.sub(pattern, '', k)] = v
         else:
             model_dict = state_dict
-    model_uv.load_state_dict(model_dict)
+    model_fusion.load_state_dict(model_dict)
 
     for cyclone in tqdm(test_dict):
-        eval_on_cyclone(cyclone, model_uv)
+        eval_on_cyclone(cyclone, model_fusion)

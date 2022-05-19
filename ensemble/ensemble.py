@@ -16,9 +16,17 @@ in kilometres calculated using the Haversine formula.
 
 def haversine_loss(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
     R = 6371 # km
-
-    lon0, lat0 = y_true[:,0], y_true[:,1]
-    lon1, lat1 = y_pred[:,0], y_pred[:,1]
+    
+    """
+    [[129.09   129.047 ]
+      [ 25.9511  28.0132]]
+    """
+    
+    pred_location = y_true[:,0] + y_pred
+    true_location = y_true[:,1]
+    
+    lon0, lat0 = true_location[0], true_location[1]
+    lon1, lat1 = pred_location[0], pred_location[1]
 
     phi0 = lat0 * (math.pi/180) # radians
     phi1 = lat1 * (math.pi/180)
@@ -28,14 +36,18 @@ def haversine_loss(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
 
     a = np.sin(delta_phi/2)**2 + np.cos(phi0) * np.cos(phi1) * np.sin(delta_lambda/2)**2
     c = 2 * R * np.arctan2(np.sqrt(a), np.sqrt(1-a))
+    c = np.sum(c)/y_true.shape[0]
 
     return c
 
 def haversine_loss_tf(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
     R = 6371 # km
-
-    lon0, lat0 = y_true[:,0], y_true[:,1]
-    lon1, lat1 = y_pred[:,0], y_pred[:,1]
+    
+    pred_location = tf.math.add(y_true[:,:,0], y_pred)
+    true_location = y_true[:,:,1]
+    
+    lon0, lat0 = true_location[:,0], true_location[:,1]
+    lon1, lat1 = pred_location[:,0], pred_location[:,1]
 
     phi0 = lat0 * (math.pi/180) # radians
     phi1 = lat1 * (math.pi/180)
@@ -45,7 +57,7 @@ def haversine_loss_tf(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
 
     a = tf.math.sin(delta_phi/2)**2 + tf.math.cos(phi0) * tf.math.cos(phi1) * tf.math.sin(delta_lambda/2)**2
     c = 2 * R * tf.math.atan2(tf.math.sqrt(a), tf.math.sqrt(1-a))
-
+    
     return c
 
 class BaseModel:
@@ -75,37 +87,35 @@ class BaseModel:
 # ARTIFICIAL NEURAL NETWORK
 
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
+from tensorflow.keras.layers import Dense, Dropout, BatchNormalization, LayerNormalization
 
 class ANNModel(BaseModel):
     NAME = 'ANN'
 
     def train(self, Xt, Xv, Yt, Yv, verbose=False):
         model = Sequential([
-            Dense(256, input_shape=Xt.shape[1:], activation='gelu'),
+            Dense(2048, input_shape=Xt.shape[1:], activation='gelu', kernel_regularizer='l1_l2'),
             BatchNormalization(),
-            Dropout(0.5),
-            Dense(1024, input_shape=(256,), activation='gelu'),
-            BatchNormalization(),
-            Dropout(0.5),
-            Dense(Yt.shape[1], input_shape=(1024,), activation='gelu')
+            Dense(Yt.shape[1], input_shape=(2048,), activation='gelu', kernel_regularizer='l1_l2')
         ])
 
         if verbose: model.summary()
 
+        optimizer = keras.optimizers.Adam(learning_rate=1e-4)
+        
         model.compile(
             loss=haversine_loss_tf,
-            optimizer='adam',
+            optimizer=optimizer,
             metrics=[]
         )
 
-        batch = 100
+        batch = 512
         history = model.fit(
             Xt, Yt,
             batch_size=batch,
-            epochs=30,
+            epochs=100,
             steps_per_epoch=(Xt.shape[0] // batch),
-            verbose=1,
+            verbose=2,
             shuffle=True,
             validation_data=(Xv,Yv)
         )
@@ -208,7 +218,7 @@ class RandomForestModel(BaseModel):
             "n_estimators": [30]
         }
 
-        models = GridSearchCV(RandomForestRegressor(verbose=verbose), params, verbose=verbose)
+        models = GridSearchCV(RandomForestRegressor(verbose=verbose), params, verbose=2)
         models.fit(Xt, Yt)
         if verbose: print('fit models')
 

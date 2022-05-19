@@ -368,22 +368,22 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
     # load weigths for fusion model
     model_fusion.load_state_dict(model_fusion_dict)
 
-    # state = torch.load(f'{models_dir}/model_fusion_scratch')
+    state = torch.load(f'{models_dir}/model_fusion-127.27998783874791')
 
-    # state_dict = state['state_dict']
-    # optimizer_dict = state['optimizer']
+    state_dict = state['state_dict']
+    optimizer_dict = state['optimizer']
 
-    # model_dict = OrderedDict()
-    # pattern = re.compile('module.')
-    # for k,v in state_dict.items():
-    #     if re.search("module", k):
-    #         model_dict[re.sub(pattern, '', k)] = v
-    #     else:
-    #         model_dict = state_dict
-    # model_fusion.load_state_dict(model_dict)    
+    model_dict = OrderedDict()
+    pattern = re.compile('module.')
+    for k,v in state_dict.items():
+        if re.search("module", k):
+            model_dict[re.sub(pattern, '', k)] = v
+        else:
+            model_dict = state_dict
+    model_fusion.load_state_dict(model_dict)    
 
-    # state_dict = model_dict
-    state_dict = model_fusion_dict
+    state_dict = model_dict
+    # state_dict = model_fusion_dict
 
     # set unfused layers freezed
     num_params = 0
@@ -412,7 +412,7 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
     optimizer_dict = {}
 
     optimizer_params = {
-        'learning_rate':1e-5,
+        'learning_rate':1e-4,
         'betas':betas,
         'eps':eps,
         'weight_decay':weight_decay,
@@ -432,7 +432,7 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
             nprocs=world_size
         )
         
-        state = torch.load(f'{models_dir}/model_fusion_scratch')
+        state = torch.load(f'{models_dir}/model_fusion-127.27998783874791')
         
         state_dict = state['state_dict']
         optimizer_dict = state['optimizer']
@@ -447,7 +447,7 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
         model_fusion.load_state_dict(model_dict)
 
         optimizer_params = {
-            'learning_rate':1e-5,
+            'learning_rate':1e-4,
             'betas':betas,
             'eps':eps,
             'weight_decay':weight_decay,
@@ -461,7 +461,7 @@ def train_fusion_model(train_concat_ds, val_concat_ds, learning_rate, betas, eps
             nprocs=world_size
         )
 
-def prepare(rank, world_size, dataset, batch_size=512, pin_memory=False, num_workers=8):
+def prepare(rank, world_size, dataset, batch_size=256, pin_memory=False, num_workers=8):
     sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=True, drop_last=True)
     
     dataloader = DataLoader(dataset, batch_size=batch_size, pin_memory=pin_memory, num_workers=num_workers, drop_last=True, sampler=sampler)
@@ -611,19 +611,19 @@ def eval(rank, world_size, dataset, model, model_name):
     # if we are using DistributedSampler, we have to tell it which epoch this is
     dataloader.sampler.set_epoch(epoch)
     
-    loss_fn = L2_Dist_Func_Intensity().to(rank)
+    loss_fn = L2_Dist_Func_Mae().to(rank)
     
     running_tloss = 0
+
+    running_loss_list = []
     
     for step, vdata in enumerate(dataloader):
         tinputs, tlabels = vdata
         toutputs = model(tinputs).to(rank)
         tlabels = tlabels.to(rank)
         tloss = loss_fn(toutputs, tlabels, rank)
-        print(f"test labels: {tlabels}")
-        print(f"test labels: {toutputs}")
-        print(f"test labels: {tloss.mean().item()}")
         running_tloss += tloss.mean().item()
+        running_loss_list.append(tloss.mean().item())
 
         if step % 5 == 4:
             print(f"{tloss} loss for step {step} in {epoch}")
@@ -633,6 +633,12 @@ def eval(rank, world_size, dataset, model, model_name):
     print(f"Loss in testing for {model_name} was {avg_tloss}")
     tloss_and_rank = (avg_tloss, rank)
 
+    import statistics
+
+    st_dev = statistics.pstdev(running_loss_list)
+
+    print(f"Standard deviation in testing for {model_name} was {st_dev}")
+
     with open(f'tloss-{rank}.pickle', 'wb') as f:
         pickle.dump(tloss_and_rank, f)
 
@@ -640,9 +646,9 @@ def eval(rank, world_size, dataset, model, model_name):
 
 def test_model(test_dataset, model_name):
     if model_name == "model_uv":
-        state = torch.load(f'{models_dir}/model_uv_scratch')
+        state = torch.load(f'{models_dir}/model_fusion-127.27998783874791')
         
-        model_uv = UV_Model()
+        model_fusion = Fusion_Model()
             
         state_dict = state['state_dict']
 
@@ -653,13 +659,13 @@ def test_model(test_dataset, model_name):
                 model_dict[re.sub(pattern, '', k)] = v
             else:
                 model_dict = state_dict
-        model_uv.load_state_dict(model_dict)
+        model_fusion.load_state_dict(model_dict)
 
         world_size = 2
 
         mp.spawn(
                 eval,
-                args=(world_size, test_dataset, model_uv, "model_uv"),
+                args=(world_size, test_dataset, model_fusion, "model_fusion"),
                 nprocs=world_size
             )
         
@@ -670,12 +676,14 @@ def test_model(test_dataset, model_name):
                 with open(file, 'wb') as tloss_tuple:
                     avg_tloss += pickle.load(tloss_tuple)[0]
         
+        print(avg_tloss)
+
         return (avg_tloss/world_size)
 
-def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json, partition_name):
+def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json, partition_name, dir_name):
 
     if ('model_fusion_scratch' in os.listdir(models_dir)):
-        state = torch.load(f'{models_dir}/model_fusion_scratch') # Could change
+        state = torch.load(f'{models_dir}/model_fusion-127.27998783874791') # Could change
         
         model_fusion = Fusion_Model(feature_pred=True)
             
@@ -690,19 +698,18 @@ def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json, partitio
                 model_dict = state_dict
         model_fusion.load_state_dict(model_dict)
     
-    model_fusion = model_fusion.to(0)
-    model_fusion.feature_pred = True
+    model_fusion.to(0)
 
     model_fusion.eval()
 
-    feature_array = np.zeros((len(cyclone_dataset), 4111))
+    feature_array = np.zeros((len(cyclone_dataset), 128))
 
     j = 0
 
     with open(cyclone_json, 'r') as cj:
         cyclone_dict = json.load(cj)
     
-    cyclone_dir = test_dir
+    cyclone_dir = dir_name
 
     for cyclone in tqdm(cyclone_dict):
         examples, labels = get_examples_and_labels(cyclone_dir, f"{cyclone}", cyclone_dict, include_time=True, fusion=True)
@@ -712,21 +719,23 @@ def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json, partitio
             pred = model_fusion.forward(examples[i])
             pred = pred.cpu().detach().numpy()
 
+            # pred = np.concatenate([pred, examples[i][1].cpu().detach().numpy()], axis=1)
+
             feature_array[j] = pred
 
-            label, time = labels[i][0].detach().numpy(), labels[i][1]
+            # label, time = labels[i][0].detach().numpy(), labels[i][1]
 
-            data = {f'{cyclone}-{time}':{
-                    'label':label.tolist(),
-                    'time':time,
-                    'index':j
-                    }}
+            # data = {f'{cyclone}-{time}':{
+            #         'label':label.tolist(),
+            #         'time':time,
+            #         'index':j
+            #         }}
 
-            append_to_json(label_json, data)
+            # append_to_json(label_json, data)
 
             j += 1
 
-    np.save(f'{feature_dir}/feature-array-plain-{partition_name}.npy', feature_array)
+    np.save(f'{feature_dir}/feature-array-latest-{partition_name}.npy', feature_array)
 
 
 if __name__ == '__main__':
@@ -735,10 +744,9 @@ if __name__ == '__main__':
     test_dataset_meta, train_concat_ds, validate_concat_ds, test_concat_ds = load_datasets()            
     
     # train_single_models(train_dataset_uv, validate_dataset_uv, train_dataset_z, validate_dataset_z, train_dataset_meta, validate_dataset_meta, 1e-3, (0.9, 0.999), 1e-8, 1e-4)
-   
 
-    generate_feature_dataset(train_json, train_concat_ds, train_feature_label_json, "train")
-    generate_feature_dataset(val_json, validate_concat_ds, val_feature_label_json, "val")
-    generate_feature_dataset(test_json, test_concat_ds, test_feature_label_json, "test")
+    generate_feature_dataset(train_json, train_concat_ds, train_feature_label_json, "train", train_dir)
+    generate_feature_dataset(val_json, validate_concat_ds, val_feature_label_json, "val", val_dir)
+    generate_feature_dataset(test_json, test_concat_ds, test_feature_label_json, "test", test_dir)
     # train_fusion_model(train_concat_ds, validate_concat_ds, 1e-3, (0.9, 0.999), 1e-8, 1e-2, False)
     # Want to test 2014253N13260

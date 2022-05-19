@@ -11,7 +11,7 @@ class Fusion_Model(nn.Module):
         self.in_channels = 2*(time_steps_back+1)*pressure_levels
         self.feature_pred = feature_pred
 
-        self.dropout = nn.Dropout(0.25)
+        self.dropout = nn.Dropout(0.5)
 
         self.conv0_uv = nn.Conv2d(in_channels=self.in_channels, out_channels=96, kernel_size=11, stride=2, padding=0, groups=1, bias=True)
         self.conv0_bn_uv = nn.BatchNorm2d(96)
@@ -55,7 +55,7 @@ class Fusion_Model(nn.Module):
         self.fc2_z = nn.Linear(in_features=2048, out_features=2048)
         self.fc2_bn_z = nn.BatchNorm1d(2048)
 
-        self.fc1 = nn.Linear(in_features=(2048*2 + (time_steps_back+1) * 3 + 9), out_features=2048)
+        self.fc1 = nn.Linear(in_features=(4111), out_features=2048)
         self.fc1_bn = nn.BatchNorm1d(2048)
         self.fc2 = nn.Linear(in_features=2048, out_features=1024)
         self.fc2_bn = nn.BatchNorm1d(1024)
@@ -104,7 +104,9 @@ class Fusion_Model(nn.Module):
         x1 = F.relu(self.conv4_bn_uv(self.conv4_uv(x1)))
         x1 = F.max_pool2d(x1, kernel_size=3, stride=2, padding=1)
         x1 = x1.view(-1, 256*4*4)
-        x1_skip = self.fc1_uv(x1)
+        # x1_skip = x1
+        # x1_skip = self.fc1_uv(x1_skip)
+        # x1_skip = self.fc2_uv(x1_skip)
         x1 = F.relu(self.fc1_bn_uv(self.fc1_uv(x1)))
         x1 = F.relu(self.fc2_bn_uv(self.fc2_uv(x1)))
 
@@ -117,19 +119,22 @@ class Fusion_Model(nn.Module):
         x2 = F.relu(self.conv4_bn_z(self.conv4_z(x2)))
         x2 = F.max_pool2d(x2, kernel_size=3, stride=2, padding=1)
         x2 = x2.view(-1, 256*4*4)
-        x2_skip = self.fc1_z(x2)
+        # x2_skip = x2
         x2 = F.relu(self.fc1_bn_z(self.fc1_z(x2)))
         x2 = F.relu(self.fc2_bn_z(self.fc2_z(x2)))
-
-        if self.feature_pred:
-            feature_pred_vec = torch.cat((x1_skip,x2_skip, meta_example.float()), dim=1)
-            return feature_pred_vec
+        # x2_skip = self.fc1_z(x2_skip)
+        # x2_skip = self.fc2_z(x2_skip)
 
         x = torch.cat((x1,x2, meta_example.float()), dim=1)
+
         x = F.relu(self.fc1_bn(self.fc1(x)))
+
         x = self.dropout(x)
         x = F.relu(self.fc2_bn(self.fc2(x)))
         x = self.dropout(x)
+        if self.feature_pred:
+            return self.fc3(x)
         x = F.relu(self.fc3_bn(self.fc3(x)))
+
         x = self.fc4(x)
         return x
