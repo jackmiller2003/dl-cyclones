@@ -7,6 +7,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.keras as keras
 import math
+from typing import Tuple
 
 """
 These stacked models are trained using the feature vectors from midway through the two CNN's and the metadata concatenated together.
@@ -14,7 +15,9 @@ They are used to predict the lat/long angle displacement. The loss function is t
 in kilometres calculated using the Haversine formula.
 """
 
-def haversine_loss(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
+# haversine_loss([[long_old, long_new], [lat_old, lat_new]], [pred_d_long, pred_d_lat])
+# -> great circle distance in km between pred and true
+def haversine_loss(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     R = 6371 # km
     
     """
@@ -39,6 +42,11 @@ def haversine_loss(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
     c = np.sum(c)/y_true.shape[0]
 
     return c
+
+def haversine(old_coords: Tuple[float, float], new_coords: Tuple[float, float], pred_coords: Tuple[float, float]) -> float:
+    y_true = np.array([[ old_coords[0], new_coords[0] ], [ old_coords[1], new_coords[1] ]])
+    y_pred = np.array([ pred_coords[0] - old_coords[0], pred_coords[1] - old_coords[1] ])
+    return haversine_loss(y_true, y_pred)
 
 def haversine_loss_tf(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
     R = 6371 # km
