@@ -47,10 +47,10 @@ import torch.multiprocessing as mp
 
 def setup(rank, world_size):
     os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12352'
+    os.environ['MASTER_PORT'] = '12352' # Function to try and connect the port
 
     # initialize the process group
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+    dist.init_process_group("nccl", rank=rank, world_size=world_size) # Stick to nccl.
 
 def cleanup():
     dist.destroy_process_group()
@@ -683,9 +683,9 @@ def test_model(test_dataset, model_name):
 def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json, partition_name, dir_name):
 
     if ('model_fusion_scratch' in os.listdir(models_dir)):
-        state = torch.load(f'{models_dir}/model_fusion-127.27998783874791') # Could change
+        state = torch.load(f'{models_dir}/model_fusion-127.27998783874791', map_location='cuda:0') # Could change
         
-        model_fusion = Fusion_Model(feature_pred=True)
+        model = Fusion_Model(feature_pred=False)
             
         state_dict = state['state_dict']
 
@@ -696,13 +696,13 @@ def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json, partitio
                 model_dict[re.sub(pattern, '', k)] = v
             else:
                 model_dict = state_dict
-        model_fusion.load_state_dict(model_dict)
+        model.load_state_dict(model_dict)
     
-    model_fusion.to(0)
+    model.to('cuda:0')
 
-    model_fusion.eval()
+    model.eval()
 
-    feature_array = np.zeros((len(cyclone_dataset), 128))
+    feature_array = np.zeros((len(cyclone_dataset), 3))
 
     j = 0
 
@@ -715,8 +715,10 @@ def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json, partitio
         examples, labels = get_examples_and_labels(cyclone_dir, f"{cyclone}", cyclone_dict, include_time=True, fusion=True)
 
         for i in range(0, len(examples)):
+            # print(examples[i])
             # examples[i] = examples[i].to(0)
-            pred = model_fusion.forward(examples[i])
+            examples[i] = [e.to('cuda:0') for e in examples[i]]
+            pred = model.forward(examples[i])
             pred = pred.cpu().detach().numpy()
 
             # pred = np.concatenate([pred, examples[i][1].cpu().detach().numpy()], axis=1)
@@ -735,7 +737,7 @@ def generate_feature_dataset(cyclone_json, cyclone_dataset, label_json, partitio
 
             j += 1
 
-    np.save(f'{feature_dir}/feature-array-latest-{partition_name}.npy', feature_array)
+    np.save(f'{feature_dir}/feature-array-outputs-fusion-{partition_name}.npy', feature_array)
 
 
 if __name__ == '__main__':

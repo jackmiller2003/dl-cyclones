@@ -185,7 +185,7 @@ def get_examples_and_labels(cyclone_dir, cyclone, data_dict, include_time=False,
 
     data = data_dict[cyclone]
 
-    target_parameters = [0,1,2]
+    target_parameters = [0,1]
 
     for coordinate in data['coordinates'][:-bound]:
         #'/g/data/x77/ob2720/partition/train'

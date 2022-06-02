@@ -94,9 +94,11 @@ class ANNModel(BaseModel):
 
     def train(self, Xt, Xv, Yt, Yv, verbose=False):
         model = Sequential([
-            Dense(2048, input_shape=Xt.shape[1:], activation='gelu', kernel_regularizer='l1_l2'),
+            Dense(128, input_shape=Xt.shape[1:], activation='gelu', kernel_regularizer='l1_l2'),
             BatchNormalization(),
-            Dense(Yt.shape[1], input_shape=(2048,), activation='gelu', kernel_regularizer='l1_l2')
+            Dense(64, input_shape=(128,), activation='gelu', kernel_regularizer='l1_l2'),
+            BatchNormalization(),
+            Dense(Yt.shape[1], input_shape=(64,), activation='gelu', kernel_regularizer='l1_l2')
         ])
 
         if verbose: model.summary()
@@ -113,7 +115,7 @@ class ANNModel(BaseModel):
         history = model.fit(
             Xt, Yt,
             batch_size=batch,
-            epochs=100,
+            epochs=250,
             steps_per_epoch=(Xt.shape[0] // batch),
             verbose=2,
             shuffle=True,
