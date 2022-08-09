@@ -3,6 +3,7 @@ from abc import abstractmethod
 import math
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 def log_zeromean_multivariate_normal_pdf(x, cov): # x is a vector, cov is a square covariance matrix
     k = cov.shape[0]
@@ -46,9 +47,14 @@ class CovarianceModel:
                 point_residual(point),
                 self.estimate(point.long, point.lat, point.intensity)
             )
-            for _, point in test_set.iterrows()
+            for _, point in tqdm(test_set.iterrows(), total=len(test_set))
         ])
 
     def assess_geo_mean_log_likelihood(self, train_set: pd.DataFrame, test_set: pd.DataFrame) -> float:
+        """
+        Trains the model on the training set, then computes the geometric mean of the log likelihoods on the test set
+        This is a useful metric for comparing models: less negative is better
+        You can turn it into the implied geometric mean probability density by taking math.exp(return_value)
+        """
         self.train(train_set)
         return self.log_likelihood(test_set) / len(test_set)
