@@ -20,6 +20,14 @@ def point_residual(point: pd.Series):
 def pretty_cov(cov: np.ndarray):
     return f"[[{cov[0][0]:.3f}, {cov[0][1]:.3f}], [{cov[1][0]:.3f}, {cov[1][1]:.3f}]]"
 
+class Hemisphere:
+    North = 'North'
+    South = 'South'
+
+    @staticmethod
+    def latitude(lat: float) -> 'Hemisphere':
+        return Hemisphere.North if lat >= 0 else Hemisphere.South
+
 class CovarianceModel:
 
     """
@@ -50,11 +58,28 @@ class CovarianceModel:
             for _, point in tqdm(test_set.iterrows(), total=len(test_set))
         ])
 
-    def assess_geo_mean_log_likelihood(self, train_set: pd.DataFrame, test_set: pd.DataFrame) -> float:
+    @classmethod
+    def assess(cls, train_set: pd.DataFrame, test_set: pd.DataFrame) -> float:
         """
-        Trains the model on the training set, then computes the geometric mean of the log likelihoods on the test set
-        This is a useful metric for comparing models: less negative is better
+        Trains the model on the training set, then computes and pretty prints some test set statistics
         You can turn it into the implied geometric mean probability density by taking math.exp(return_value)
         """
+        self = cls()
+        name = self.__class__.__name__
+
         self.train(train_set)
-        return self.log_likelihood(test_set) / len(test_set)
+
+        # log likelihood of the entire test set, usually very negative (eg -100_000)
+        log_likelihood = self.log_likelihood(test_set)
+        # ln (geometric mean of likelihoods on the test set), usually a better stat for comparison
+        # This is a useful metric for comparing models: the less negative is better
+        log_geo_mean_likelihood = log_likelihood / len(test_set)
+        # geometric mean of likelihoods on the test set, usually a relatively small number
+        geo_mean_p_density = math.exp(log_geo_mean_likelihood)
+
+        print(
+            f"{name}:"
+            f"\n  log likelihood: {log_likelihood:.0f}"
+            f"\n  log geo mean likelihood: {log_geo_mean_likelihood:.3f}"
+            f"\n  geo mean p density: {geo_mean_p_density:.5f}"
+        )
