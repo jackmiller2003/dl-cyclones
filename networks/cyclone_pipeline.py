@@ -95,7 +95,7 @@ def train_single_models(train_dataset_uv, val_dataset_uv, train_dataset_z, val_d
         print("Spawned processes")
         
         for epoch in range(1,EPOCHS+1):
-        
+            
             world_size = 2
             mp.spawn(
                 train,

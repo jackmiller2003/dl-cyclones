@@ -1,7 +1,7 @@
-*.csv
+./*.csv
 *__pycache__
 *.ipynb_checkpoints
-
+.data
 
 # gadi pbs job files
 *.e*
